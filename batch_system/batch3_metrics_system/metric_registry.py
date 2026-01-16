@@ -1,0 +1,845 @@
+"""
+Metric Registry - Batch 3
+Central registry for all panel metrics with contract-stable IDs
+
+CRITICAL RULES:
+- IDs are CONTRACT-STABLE: Never renumber or rename once defined
+- New metrics are ALWAYS added to the END of their section (weekly/monthly)
+- Metric order in this file determines display order in UI
+- ALL params use STRING format: interval="1h", limit="30", symbol="BTC"
+
+DAILY MINIMAL SPECIFICATION (DO NOT DRIFT):
+The 10 daily metrics are CONTRACT-LOCKED based on Daily Minimal requirements:
+1. OI snapshot (total)
+2. OI change 1h
+3. OI change 4h
+4. Weighted funding 8h
+5. Funding history 8h*30
+6. L/S global
+7. L/S Hyperliquid
+8. Liquidations totals 24h (combined: long/short/total/percent)
+9. Top liquidation events (top 10, 24h)
+10. Coinbase premium index snapshot
+
+IMPORT-TIME VALIDATION:
+- validate_unique_ids() is called automatically when this module loads
+- Duplicate IDs will cause immediate import failure (fail-fast)
+- This ensures contract integrity before any code runs
+
+METRIC COUNTS (CONTRACT):
+- Daily: 10 metrics (daily_01 → daily_10) - IMPLEMENTED
+- Weekly: 18 metrics (weekly_01 → weekly_18) - REGISTRY ONLY
+- Monthly: 15 metrics (monthly_01 → monthly_15) - REGISTRY ONLY
+- Total: 43 metrics
+"""
+
+from typing import Dict, List
+from batch3_metrics_system.metric_definitions import (
+    MetricDefinition,
+    MetricStatus,
+    create_daily_metric,
+    create_registry_metric,
+    APIConfidence,
+    DataSource,
+    PlanTier
+)
+
+
+# ============================================================================
+# DAILY METRICS - BATCH 3 IMPLEMENTATION (10 metrics)
+# ============================================================================
+# These metrics are fully implemented with normalizers
+# IDs: daily_01 → daily_10 (CONTRACT-LOCKED)
+# Based on DAILY MINIMAL list - DO NOT DRIFT from this specification
+
+DAILY_METRICS: List[MetricDefinition] = [
+    # daily_01 - Total Open Interest (snapshot)
+    create_daily_metric(
+        daily_id="daily_01_total_open_interest",
+        name="Total Open Interest",
+        timeframe="snapshot",
+        category="open_interest",
+        endpoint="/api/futures/open-interest/aggregated-history",
+        params={"interval": "8h", "limit": "1", "symbol": "BTC"},
+        api_confidence=APIConfidence.CONFIRMED,
+        normalizer="normalize_total_oi",
+        unit="billion_usd",
+        description="Current total open interest across all exchanges",
+        implementation_notes="Latest value from 8h candles; uses close field from v4 OHLC data"
+    ),
+    
+    # daily_02 - OI Change (1h)
+    create_daily_metric(
+        daily_id="daily_02_oi_change_1h",
+        name="OI Change (1h)",
+        timeframe="1h",
+        category="open_interest",
+        endpoint="/api/futures/open-interest/aggregated-history",
+        params={"interval": "1h", "limit": "2", "symbol": "BTC"},
+        api_confidence=APIConfidence.CONFIRMED,
+        normalizer="normalize_oi_change_1h",
+        unit="percent",
+        description="1-hour percentage change in open interest",
+        implementation_notes="Compare last 2 datapoints (1h interval); v4 uses close field"
+    ),
+    
+    # daily_03 - OI Change (4h)
+    create_daily_metric(
+        daily_id="daily_03_oi_change_4h",
+        name="OI Change (4h)",
+        timeframe="4h",
+        category="open_interest",
+        endpoint="/api/futures/open-interest/aggregated-history",
+        params={"interval": "4h", "limit": "2", "symbol": "BTC"},
+        api_confidence=APIConfidence.CONFIRMED,
+        normalizer="normalize_oi_change_4h",
+        unit="percent",
+        description="4-hour percentage change in open interest",
+        implementation_notes="Compare last 2 datapoints (4h interval); v4 uses close field"
+    ),
+    
+    # daily_04 - Weighted Funding Rate (8h snapshot)
+    create_daily_metric(
+        daily_id="daily_04_weighted_funding_rate",
+        name="Weighted Funding Rate",
+        timeframe="snapshot",
+        category="funding",
+        endpoint="/api/futures/funding-rate/oi-weight-history",
+        params={"interval": "8h", "limit": "1", "symbol": "BTC"},
+        api_confidence=APIConfidence.CONFIRMED,
+        normalizer="normalize_weighted_funding",
+        unit="percent",
+        description="Current weighted average funding rate",
+        implementation_notes="Latest 8h funding rate; v4 endpoint per docs"
+    ),
+    
+    # daily_05 - Funding Rate History (8h * 30 candles)
+    create_daily_metric(
+        daily_id="daily_05_funding_rate_history",
+        name="Funding Rate History",
+        timeframe="8h",
+        category="funding",
+        endpoint="/api/futures/funding-rate/oi-weight-history",
+        params={"interval": "8h", "limit": "30", "symbol": "BTC"},
+        api_confidence=APIConfidence.CONFIRMED,
+        normalizer="normalize_funding_history",
+        unit="time_series",
+        description="30-period funding rate history (8h intervals)",
+        implementation_notes="Returns list[dict] with timestamp (epoch seconds) and value; v4 endpoint per docs"
+    ),
+    
+    # daily_06 - Long/Short Ratio (Global)
+    create_daily_metric(
+        daily_id="daily_06_long_short_global",
+        name="Long/Short Ratio (Global)",
+        timeframe="snapshot",
+        category="long_short",
+        endpoint="/api/futures/global-long-short-account-ratio/history",
+        params={"interval": "1h", "limit": "1", "symbol": "BTC"},
+        api_confidence=APIConfidence.CONFIRMED,
+        normalizer="normalize_long_short_global",
+        unit="ratio",
+        description="Global long/short account ratio",
+        implementation_notes="Returns dict with long, short, ratio; v4 global endpoint"
+    ),
+    
+    # daily_07 - Long/Short Ratio (Hyperliquid) - PLACEHOLDER (implemented=False)
+    MetricDefinition(
+        id="daily_07_long_short_hyperliquid",
+        name="Long/Short Ratio (Hyperliquid)",
+        timeframe="snapshot",
+        category="long_short",
+        endpoint="/api/futures/global-long-short-account-ratio/history",
+        params={"interval": "1h", "limit": "1", "symbol": "BTC"},
+        api_confidence=APIConfidence.UNVERIFIED,
+        normalizer="normalize_long_short_hyperliquid",
+        unit="ratio",
+        description="Hyperliquid exchange long/short ratio (PLACEHOLDER - needs exchange-specific endpoint)",
+        implementation_notes="PLACEHOLDER: No Hyperliquid-specific endpoint found. Returns EXTERNAL_REQUIRED status.",
+        implemented=False,  # CRITICAL: Not implemented - prevents fetch attempts
+        default_status=MetricStatus.EXTERNAL_REQUIRED,  # DETERMINISTIC: Shows as external requirement, not error
+        data_source=DataSource.COINGLASS,
+        min_plan=PlanTier.STARTUP
+    ),
+    
+    # daily_08 - 24h Liquidations Total (combined)
+    create_daily_metric(
+        daily_id="daily_08_liquidations_24h_total",
+        name="24h Liquidations (Total)",
+        timeframe="24h",
+        category="liquidations",
+        endpoint="/api/futures/liquidation/aggregated-history",
+        params={"interval": "4h", "limit": "6", "symbol": "BTC"},
+        api_confidence=APIConfidence.CONFIRMED,
+        normalizer="normalize_liquidations_total",
+        unit="million_usd",
+        description="24-hour liquidation summary (long/short/total)",
+        implementation_notes="Returns dict: {long, short, total, long_percent, short_percent}; v4 aggregated endpoint"
+    ),
+    
+    # daily_09 - Top Liquidation Events (24h, top 10)
+    create_daily_metric(
+        daily_id="daily_09_top_liquidation_events",
+        name="Top Liquidation Events",
+        timeframe="24h",
+        category="liquidations",
+        endpoint="/api/futures/liquidation/aggregated-history",
+        params={"interval": "4h", "limit": "6", "symbol": "BTC"},
+        api_confidence=APIConfidence.CONFIRMED,
+        normalizer="normalize_liquidation_events",
+        unit="events",
+        description="Top 10 largest liquidations in 24h",
+        implementation_notes="Returns list[dict] with timestamp (epoch seconds), side, amount, exchange; v4 format"
+    ),
+    
+    # daily_10 - Coinbase Premium Index (snapshot)
+    create_daily_metric(
+        daily_id="daily_10_coinbase_premium_index",
+        name="Coinbase Premium Index",
+        timeframe="snapshot",
+        category="premium",
+        endpoint="/api/coinbase-premium-index",
+        params={"interval": "1h", "limit": "2", "symbol": "BTC"},
+        api_confidence=APIConfidence.CONFIRMED,
+        normalizer="normalize_coinbase_premium",
+        unit="percent",
+        description="Coinbase premium/discount vs global exchanges",
+        implementation_notes="Returns dict: {premium, change_1h} - latest value + 1h change; v4 indicator endpoint"
+    )
+]
+
+
+# ============================================================================
+# WEEKLY METRICS - REGISTRY ONLY (18 metrics)
+# ============================================================================
+# These metrics are NOT implemented in Batch 3 - display only
+# IDs: weekly_01 → weekly_18 (CONTRACT-LOCKED, DO NOT RENUMBER)
+# New weekly metrics must be added to the END with weekly_19, weekly_20, etc.
+
+WEEKLY_METRICS: List[MetricDefinition] = [
+    # weekly_01 - OI Trend (7d)
+    create_registry_metric(
+        registry_id="weekly_01_oi_trend",
+        name="OI Trend (7d)",
+        timeframe="7d",
+        category="open_interest",
+        data_source=DataSource.COINGLASS,
+        min_plan=PlanTier.STARTUP,
+        unit="direction",
+        description="7-day open interest direction (up/down/flat)",
+        implementation_notes="Compare current OI vs 7 days ago"
+    ),
+    
+    # weekly_02 - CME OI (7d)
+    create_registry_metric(
+        registry_id="weekly_02_cme_oi",
+        name="CME OI (7d)",
+        timeframe="7d",
+        category="open_interest",
+        data_source=DataSource.EXTERNAL,
+        min_plan=PlanTier.STARTUP,
+        unit="billion_usd",
+        description="CME Bitcoin futures open interest",
+        implementation_notes="Requires CME data feed"
+    ),
+    
+    # weekly_03 - CME Long/Short
+    create_registry_metric(
+        registry_id="weekly_03_cme_long_short",
+        name="CME Long/Short",
+        timeframe="7d",
+        category="long_short",
+        data_source=DataSource.EXTERNAL,
+        min_plan=PlanTier.STARTUP,
+        unit="ratio",
+        description="CME positioning from COT report",
+        implementation_notes="Weekly COT data from CFTC"
+    ),
+    
+    # weekly_04 - Basis Spread (7d)
+    create_registry_metric(
+        registry_id="weekly_04_basis_spread",
+        name="Basis Spread (7d)",
+        timeframe="7d",
+        category="premium",
+        data_source=DataSource.COINGLASS,
+        min_plan=PlanTier.STARTUP,
+        unit="percent",
+        description="Average spot-futures gap over 7 days",
+        implementation_notes="7-day average of basis values"
+    ),
+    
+    # weekly_05 - Funding Rate Avg (7d)
+    create_registry_metric(
+        registry_id="weekly_05_funding_rate_avg",
+        name="Funding Rate Avg (7d)",
+        timeframe="7d",
+        category="funding",
+        data_source=DataSource.COINGLASS,
+        min_plan=PlanTier.STARTUP,
+        unit="percent",
+        description="7-day average funding rate",
+        implementation_notes="Mean of funding rates over 7 days"
+    ),
+    
+    # weekly_06 - Long Liquidations (7d)
+    create_registry_metric(
+        registry_id="weekly_06_long_liquidations",
+        name="Long Liquidations (7d)",
+        timeframe="7d",
+        category="liquidations",
+        data_source=DataSource.COINGLASS,
+        min_plan=PlanTier.STARTUP,
+        unit="million_usd",
+        description="Total long liquidation volume over 7 days",
+        implementation_notes="Sum of long liquidations"
+    ),
+    
+    # weekly_07 - Short Liquidations (7d)
+    create_registry_metric(
+        registry_id="weekly_07_short_liquidations",
+        name="Short Liquidations (7d)",
+        timeframe="7d",
+        category="liquidations",
+        data_source=DataSource.COINGLASS,
+        min_plan=PlanTier.STARTUP,
+        unit="million_usd",
+        description="Total short liquidation volume over 7 days",
+        implementation_notes="Sum of short liquidations"
+    ),
+    
+    # weekly_08 - Net Flow (7d)
+    create_registry_metric(
+        registry_id="weekly_08_net_flow",
+        name="Net Flow (7d)",
+        timeframe="7d",
+        category="open_interest",
+        data_source=DataSource.EXTERNAL,
+        min_plan=PlanTier.STANDARD,
+        unit="btc",
+        description="Net exchange inflow/outflow over 7 days",
+        implementation_notes="Requires on-chain data (Glassnode/CryptoQuant)"
+    ),
+    
+    # weekly_09 - Large Holder Acc (7d)
+    create_registry_metric(
+        registry_id="weekly_09_large_holder_acc",
+        name="Large Holder Acc (7d)",
+        timeframe="7d",
+        category="open_interest",
+        data_source=DataSource.EXTERNAL,
+        min_plan=PlanTier.STANDARD,
+        unit="percent",
+        description="Whale accumulation trend over 7 days",
+        implementation_notes="Requires on-chain data"
+    ),
+    
+    # weekly_10 - Active Addresses (7d)
+    create_registry_metric(
+        registry_id="weekly_10_active_addresses",
+        name="Active Addresses (7d)",
+        timeframe="7d",
+        category="open_interest",
+        data_source=DataSource.EXTERNAL,
+        min_plan=PlanTier.STANDARD,
+        unit="count",
+        description="7-day average active addresses",
+        implementation_notes="Requires on-chain data"
+    ),
+    
+    # weekly_11 - BTC Dominance Change
+    create_registry_metric(
+        registry_id="weekly_11_btc_dominance_change",
+        name="BTC Dominance Change",
+        timeframe="7d",
+        category="open_interest",
+        data_source=DataSource.EXTERNAL,
+        min_plan=PlanTier.STARTUP,
+        unit="percent",
+        description="Change in BTC market cap dominance",
+        implementation_notes="Market cap data from CMC/CoinGecko"
+    ),
+    
+    # weekly_12 - ETH/BTC Ratio Change
+    create_registry_metric(
+        registry_id="weekly_12_eth_btc_ratio_change",
+        name="ETH/BTC Ratio Change",
+        timeframe="7d",
+        category="open_interest",
+        data_source=DataSource.COINGLASS,
+        min_plan=PlanTier.STARTUP,
+        unit="percent",
+        description="ETH relative strength vs BTC",
+        implementation_notes="7-day ratio change"
+    ),
+    
+    # weekly_13 - Major Exchange Volume
+    create_registry_metric(
+        registry_id="weekly_13_major_exchange_volume",
+        name="Major Exchange Volume",
+        timeframe="7d",
+        category="open_interest",
+        data_source=DataSource.COINGLASS,
+        min_plan=PlanTier.STARTUP,
+        unit="billion_usd",
+        description="7-day spot volume on major exchanges",
+        implementation_notes="Aggregate spot volume"
+    ),
+    
+    # weekly_14 - Perp Volume Change
+    create_registry_metric(
+        registry_id="weekly_14_perp_volume_change",
+        name="Perp Volume Change",
+        timeframe="7d",
+        category="open_interest",
+        data_source=DataSource.COINGLASS,
+        min_plan=PlanTier.STARTUP,
+        unit="percent",
+        description="7-day change in perpetual futures volume",
+        implementation_notes="Derivatives activity trend"
+    ),
+    
+    # weekly_15 - USDT Premium (7d)
+    create_registry_metric(
+        registry_id="weekly_15_usdt_premium",
+        name="USDT Premium (7d)",
+        timeframe="7d",
+        category="premium",
+        data_source=DataSource.EXTERNAL,
+        min_plan=PlanTier.STANDARD,
+        unit="percent",
+        description="7-day average USDT premium/discount",
+        implementation_notes="Stablecoin peg deviation"
+    ),
+    
+    # weekly_16 - Fear & Greed Index
+    create_registry_metric(
+        registry_id="weekly_16_fear_greed_index",
+        name="Fear & Greed Index",
+        timeframe="7d",
+        category="open_interest",
+        data_source=DataSource.EXTERNAL,
+        min_plan=PlanTier.STARTUP,
+        unit="index",
+        description="Market sentiment indicator (0-100)",
+        implementation_notes="Alternative.me Fear & Greed"
+    ),
+    
+    # weekly_17 - Options Put/Call Ratio
+    create_registry_metric(
+        registry_id="weekly_17_options_put_call_ratio",
+        name="Options Put/Call Ratio",
+        timeframe="7d",
+        category="open_interest",
+        data_source=DataSource.EXTERNAL,
+        min_plan=PlanTier.PREMIUM,
+        unit="ratio",
+        description="Options positioning indicator",
+        implementation_notes="Deribit options data"
+    ),
+    
+    # weekly_18 - Market Cap Rank Changes
+    create_registry_metric(
+        registry_id="weekly_18_market_cap_rank_changes",
+        name="Market Cap Rank Changes",
+        timeframe="7d",
+        category="open_interest",
+        data_source=DataSource.EXTERNAL,
+        min_plan=PlanTier.STARTUP,
+        unit="count",
+        description="Top 100 ranking movements",
+        implementation_notes="CMC/CoinGecko rankings"
+    )
+]
+
+
+# ============================================================================
+# MONTHLY METRICS - REGISTRY ONLY (15 metrics)
+# ============================================================================
+# These metrics are NOT implemented in Batch 3 - display only
+# IDs: monthly_01 → monthly_15 (CONTRACT-LOCKED, DO NOT RENUMBER)
+# New monthly metrics must be added to the END with monthly_16, monthly_17, etc.
+
+MONTHLY_METRICS: List[MetricDefinition] = [
+    # monthly_01 - Volatility (30d)
+    create_registry_metric(
+        registry_id="monthly_01_volatility",
+        name="Volatility (30d)",
+        timeframe="30d",
+        category="open_interest",
+        data_source=DataSource.COMPUTED,
+        min_plan=PlanTier.STARTUP,
+        unit="percent",
+        description="30-day historical volatility",
+        implementation_notes="Standard deviation of returns"
+    ),
+    
+    # monthly_02 - MVRV Ratio
+    create_registry_metric(
+        registry_id="monthly_02_mvrv_ratio",
+        name="MVRV Ratio",
+        timeframe="30d",
+        category="open_interest",
+        data_source=DataSource.EXTERNAL,
+        min_plan=PlanTier.STANDARD,
+        unit="ratio",
+        description="Market value to realized value ratio",
+        implementation_notes="Requires on-chain data"
+    ),
+    
+    # monthly_03 - NVT Ratio
+    create_registry_metric(
+        registry_id="monthly_03_nvt_ratio",
+        name="NVT Ratio",
+        timeframe="30d",
+        category="open_interest",
+        data_source=DataSource.EXTERNAL,
+        min_plan=PlanTier.STANDARD,
+        unit="ratio",
+        description="Network value to transactions ratio",
+        implementation_notes="Requires on-chain data"
+    ),
+    
+    # monthly_04 - Supply on Exchanges
+    create_registry_metric(
+        registry_id="monthly_04_supply_on_exchanges",
+        name="Supply on Exchanges",
+        timeframe="30d",
+        category="open_interest",
+        data_source=DataSource.EXTERNAL,
+        min_plan=PlanTier.STANDARD,
+        unit="percent",
+        description="Percentage of supply on exchanges",
+        implementation_notes="Requires on-chain data"
+    ),
+    
+    # monthly_05 - Miner Reserve
+    create_registry_metric(
+        registry_id="monthly_05_miner_reserve",
+        name="Miner Reserve",
+        timeframe="30d",
+        category="open_interest",
+        data_source=DataSource.EXTERNAL,
+        min_plan=PlanTier.STANDARD,
+        unit="btc",
+        description="Bitcoin held by miners",
+        implementation_notes="Requires on-chain data"
+    ),
+    
+    # monthly_06 - Long-Term Holder Supply
+    create_registry_metric(
+        registry_id="monthly_06_long_term_holder_supply",
+        name="Long-Term Holder Supply",
+        timeframe="30d",
+        category="open_interest",
+        data_source=DataSource.EXTERNAL,
+        min_plan=PlanTier.STANDARD,
+        unit="percent",
+        description="Supply held by HODLers (>155 days)",
+        implementation_notes="Requires on-chain data"
+    ),
+    
+    # monthly_07 - Hash Rate Growth
+    create_registry_metric(
+        registry_id="monthly_07_hash_rate_growth",
+        name="Hash Rate Growth",
+        timeframe="30d",
+        category="open_interest",
+        data_source=DataSource.EXTERNAL,
+        min_plan=PlanTier.STARTUP,
+        unit="percent",
+        description="30-day mining power change",
+        implementation_notes="Blockchain.com or similar"
+    ),
+    
+    # monthly_08 - Realized Cap Change
+    create_registry_metric(
+        registry_id="monthly_08_realized_cap_change",
+        name="Realized Cap Change",
+        timeframe="30d",
+        category="open_interest",
+        data_source=DataSource.EXTERNAL,
+        min_plan=PlanTier.STANDARD,
+        unit="percent",
+        description="30-day capital inflow indicator",
+        implementation_notes="Requires on-chain data"
+    ),
+    
+    # monthly_09 - Stablecoin Market Cap
+    create_registry_metric(
+        registry_id="monthly_09_stablecoin_market_cap",
+        name="Stablecoin Market Cap",
+        timeframe="30d",
+        category="open_interest",
+        data_source=DataSource.EXTERNAL,
+        min_plan=PlanTier.STARTUP,
+        unit="billion_usd",
+        description="Total stablecoin supply (sideline capital)",
+        implementation_notes="Aggregate USDT+USDC+DAI etc"
+    ),
+    
+    # monthly_10 - Futures OI Growth
+    create_registry_metric(
+        registry_id="monthly_10_futures_oi_growth",
+        name="Futures OI Growth",
+        timeframe="30d",
+        category="open_interest",
+        data_source=DataSource.COINGLASS,
+        min_plan=PlanTier.STARTUP,
+        unit="percent",
+        description="30-day derivatives market growth",
+        implementation_notes="OI change over 30 days"
+    ),
+    
+    # monthly_11 - Options OI Growth
+    create_registry_metric(
+        registry_id="monthly_11_options_oi_growth",
+        name="Options OI Growth",
+        timeframe="30d",
+        category="open_interest",
+        data_source=DataSource.EXTERNAL,
+        min_plan=PlanTier.PREMIUM,
+        unit="percent",
+        description="30-day options market growth",
+        implementation_notes="Deribit options data"
+    ),
+    
+    # monthly_12 - ETF Holdings
+    create_registry_metric(
+        registry_id="monthly_12_etf_holdings",
+        name="ETF Holdings",
+        timeframe="30d",
+        category="open_interest",
+        data_source=DataSource.EXTERNAL,
+        min_plan=PlanTier.STARTUP,
+        unit="btc",
+        description="Total Bitcoin held in ETFs",
+        implementation_notes="Aggregate spot ETF holdings"
+    ),
+    
+    # monthly_13 - Grayscale/Institutional
+    create_registry_metric(
+        registry_id="monthly_13_grayscale_institutional",
+        name="Grayscale/Institutional",
+        timeframe="30d",
+        category="open_interest",
+        data_source=DataSource.EXTERNAL,
+        min_plan=PlanTier.STARTUP,
+        unit="btc",
+        description="Bitcoin in institutional trusts",
+        implementation_notes="GBTC and similar products"
+    ),
+    
+    # monthly_14 - Social Volume
+    create_registry_metric(
+        registry_id="monthly_14_social_volume",
+        name="Social Volume",
+        timeframe="30d",
+        category="open_interest",
+        data_source=DataSource.EXTERNAL,
+        min_plan=PlanTier.PREMIUM,
+        unit="index",
+        description="Social media activity indicator",
+        implementation_notes="Twitter/Reddit mentions (LunarCrush etc)"
+    ),
+    
+    # monthly_15 - Developer Activity
+    create_registry_metric(
+        registry_id="monthly_15_developer_activity",
+        name="Developer Activity",
+        timeframe="30d",
+        category="open_interest",
+        data_source=DataSource.EXTERNAL,
+        min_plan=PlanTier.PREMIUM,
+        unit="commits",
+        description="30-day GitHub commit count",
+        implementation_notes="Bitcoin Core + Lightning repos"
+    )
+]
+
+
+# ============================================================================
+# PANEL REGISTRY - COMPLETE METRIC COLLECTION
+# ============================================================================
+
+PANEL_REGISTRY: Dict[str, List[MetricDefinition]] = {
+    'daily': DAILY_METRICS,
+    'weekly': WEEKLY_METRICS,
+    'monthly': MONTHLY_METRICS
+}
+
+
+# ============================================================================
+# VALIDATION FUNCTIONS
+# ============================================================================
+
+def validate_unique_ids() -> None:
+    """
+    Validate that all metric IDs are unique across the entire registry
+    
+    This function is called at import time to ensure contract integrity.
+    If duplicate IDs are found, the import will fail immediately.
+    
+    Raises:
+        ValueError: If duplicate IDs are found
+    """
+    all_ids = []
+    
+    # Collect all IDs
+    for timeframe, metrics in PANEL_REGISTRY.items():
+        for metric in metrics:
+            all_ids.append((timeframe, metric.id))
+    
+    # Check for duplicates
+    seen = set()
+    duplicates = []
+    
+    for timeframe, metric_id in all_ids:
+        if metric_id in seen:
+            duplicates.append(metric_id)
+        seen.add(metric_id)
+    
+    # Fail immediately if duplicates found
+    if duplicates:
+        # Sort duplicates for deterministic error messages (aids debugging)
+        duplicates_sorted = sorted(set(duplicates))
+        raise ValueError(
+            f"CRITICAL: Duplicate metric IDs found in registry: {duplicates_sorted}. "
+            f"All metric IDs must be unique across daily/weekly/monthly. "
+            f"This is a CONTRACT VIOLATION - fix immediately before proceeding."
+        )
+
+
+def validate_numbering_sequence() -> None:
+    """
+    Validate that metric numbering is sequential and contiguous
+    
+    Weekly: weekly_01 → weekly_18 (no gaps)
+    Monthly: monthly_01 → monthly_15 (no gaps)
+    
+    This is a soft validation - emits warnings but does not fail import.
+    Future enhancement: Could be controlled by environment flag.
+    
+    Raises:
+        UserWarning: If numbering gaps or misordering is detected
+    """
+    import warnings
+    import re
+    
+    # Extract number from ID (e.g., "weekly_05_..." → 5)
+    def extract_number(metric_id: str) -> int:
+        match = re.search(r'_(\d{2})_', metric_id)
+        return int(match.group(1)) if match else -1
+    
+    # Check weekly numbering
+    weekly_numbers = [extract_number(m.id) for m in WEEKLY_METRICS]
+    expected_weekly = list(range(1, len(WEEKLY_METRICS) + 1))
+    if weekly_numbers != expected_weekly:
+        warnings.warn(
+            f"Weekly metric numbering is not sequential: {weekly_numbers}. "
+            f"Expected: {expected_weekly}. Check for gaps or misordering.",
+            category=UserWarning,
+            stacklevel=2
+        )
+    
+    # Check monthly numbering
+    monthly_numbers = [extract_number(m.id) for m in MONTHLY_METRICS]
+    expected_monthly = list(range(1, len(MONTHLY_METRICS) + 1))
+    if monthly_numbers != expected_monthly:
+        warnings.warn(
+            f"Monthly metric numbering is not sequential: {monthly_numbers}. "
+            f"Expected: {expected_monthly}. Check for gaps or misordering.",
+            category=UserWarning,
+            stacklevel=2
+        )
+
+
+# ============================================================================
+# IMPORT-TIME VALIDATION (CRITICAL)
+# ============================================================================
+# These validations run automatically when this module is imported.
+# Duplicate IDs will cause immediate failure (fail-fast for contract safety).
+# Numbering validation emits warnings but does not block import.
+
+validate_unique_ids()        # CRITICAL: Fails on duplicate IDs
+validate_numbering_sequence()  # Soft: Warns on numbering issues
+
+
+# ============================================================================
+# UTILITY FUNCTIONS
+# ============================================================================
+
+def get_metric_by_id(metric_id: str) -> MetricDefinition:
+    """
+    Retrieve a metric definition by its ID
+    
+    Args:
+        metric_id: Metric ID (e.g., "daily_01_total_open_interest")
+    
+    Returns:
+        MetricDefinition if found
+    
+    Raises:
+        KeyError: If metric ID not found in registry
+    """
+    for metrics in PANEL_REGISTRY.values():
+        for metric in metrics:
+            if metric.id == metric_id:
+                return metric
+    
+    raise KeyError(f"Metric ID '{metric_id}' not found in registry")
+
+
+def get_metrics_by_timeframe(timeframe: str) -> List[MetricDefinition]:
+    """
+    Get all metrics for a specific timeframe
+    
+    Args:
+        timeframe: 'daily', 'weekly', or 'monthly'
+    
+    Returns:
+        List of MetricDefinition objects
+    
+    Raises:
+        KeyError: If timeframe not recognized
+    """
+    if timeframe not in PANEL_REGISTRY:
+        raise KeyError(
+            f"Invalid timeframe '{timeframe}'. "
+            f"Must be one of: {list(PANEL_REGISTRY.keys())}"
+        )
+    
+    return PANEL_REGISTRY[timeframe]
+
+
+def get_all_implemented_metrics() -> List[MetricDefinition]:
+    """
+    Get all implemented metrics (implemented=True)
+    
+    Returns:
+        List of implemented metrics (currently only daily metrics in Batch 3)
+    """
+    implemented = []
+    for metrics in PANEL_REGISTRY.values():
+        implemented.extend([m for m in metrics if m.implemented])
+    return implemented
+
+
+def get_registry_stats() -> Dict[str, int]:
+    """
+    Get registry statistics
+    
+    Returns:
+        Dict with counts: total, daily, weekly, monthly, implemented
+    """
+    total = sum(len(metrics) for metrics in PANEL_REGISTRY.values())
+    implemented = len(get_all_implemented_metrics())
+    
+    return {
+        'total': total,
+        'daily': len(DAILY_METRICS),
+        'weekly': len(WEEKLY_METRICS),
+        'monthly': len(MONTHLY_METRICS),
+        'implemented': implemented,
+        'registry_only': total - implemented
+    }

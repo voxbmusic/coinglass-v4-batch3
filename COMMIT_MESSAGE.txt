@@ -1,0 +1,17 @@
+feat: CoinGlass v4 Batch 3 - 10 Daily Metrics Implementation
+
+Smoke test results: 3/3 PASS (local)
+- daily_01_total_open_interest: 62.99 B$ ✅
+- daily_04_weighted_funding_rate: 0.4087% ✅
+- daily_10_coinbase_premium_index: {'premium': -5.6, 'change_1h': -1.32} ✅
+
+Key fixes:
+- Funding rate endpoint: /api/futures/funding-rate/oi-weight-history
+- Case-insensitive status check in smoke_test
+- Import shadowing fix (CoinGlassAPI)
+
+Security:
+- API key never logged in smoke_test
+- All credentials handled via env vars
+
+DO NOT MERGE - Review only
