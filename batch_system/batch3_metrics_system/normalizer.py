@@ -798,3 +798,80 @@ def normalize_coinbase_premium(data: Dict[str, Any]) -> Optional[Dict[str, Optio
         
     except Exception:
         return None
+
+# PATCH_LIQUIDATION_NORMALIZERS_V1
+
+
+# PATCH_LIQUIDATION_NORMALIZERS_V1
+# Fix: CoinGlass v4 often returns {"code":"0","data":[...]} (dict wrapper).
+# Our panel expects non-None outputs; returning None yields N/A.
+
+def _unwrap_coinglass_data(payload):
+    if payload is None:
+        return None
+    if isinstance(payload, dict):
+        if "data" in payload:
+            return payload.get("data")
+        return payload
+    return payload
+
+def normalize_liquidations_total(payload):
+    data = _unwrap_coinglass_data(payload)
+    if not isinstance(data, list) or len(data) == 0:
+        return None
+    
+    long_sum = 0.0
+    short_sum = 0.0
+    for row in data:
+        if not isinstance(row, dict):
+            continue
+        l = row.get("aggregated_long_liquidation_usd", row.get("long_liquidation_usd", 0.0))
+        sh = row.get("aggregated_short_liquidation_usd", row.get("short_liquidation_usd", 0.0))
+        try:
+            long_sum += float(l or 0.0)
+            short_sum += float(sh or 0.0)
+        except Exception:
+            continue
+    
+    total = long_sum + short_sum
+    if total <= 0:
+        return {"long_usd": long_sum, "short_usd": short_sum, "long_pct": 0.0, "short_pct": 0.0}
+    
+    return {
+        "long_usd": long_sum,
+        "short_usd": short_sum,
+        "long_pct": (long_sum / total) * 100.0,
+        "short_pct": (short_sum / total) * 100.0,
+        "total_usd": total,
+    }
+
+def normalize_liquidation_events(payload, top_n=10):
+    data = _unwrap_coinglass_data(payload)
+    if not isinstance(data, list) or len(data) == 0:
+        return None
+    
+    items = []
+    for row in data:
+        if not isinstance(row, dict):
+            continue
+        t = row.get("time")
+        l = row.get("aggregated_long_liquidation_usd", row.get("long_liquidation_usd", 0.0))
+        sh = row.get("aggregated_short_liquidation_usd", row.get("short_liquidation_usd", 0.0))
+        try:
+            l = float(l or 0.0)
+            sh = float(sh or 0.0)
+        except Exception:
+            continue
+        total = l + sh
+        items.append({
+            "time": t,
+            "long_usd": l,
+            "short_usd": sh,
+            "total_usd": total,
+        })
+    
+    if not items:
+        return None
+    
+    items.sort(key=lambda x: x.get("total_usd", 0.0), reverse=True)
+    return items[:top_n]

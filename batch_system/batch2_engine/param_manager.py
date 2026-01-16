@@ -91,8 +91,7 @@ def normalize_params(params: Dict[str, Any], endpoint: str) -> Dict[str, Any]:
             # Handle common variants
             if symbol in ["BITCOIN", "BITCOINUSDT"]:
                 symbol = "BTC"
-            elif symbol == "BTCUSDT":
-                symbol = "BTC"  # Strip USDT suffix
+
             
             normalized["symbol"] = symbol
         else:
