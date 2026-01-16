@@ -1,0 +1,9 @@
+“.venv/”
+“pycache/”
+“.DS_Store”
+“.venv/”
+“pycache/”
+“.DS_Store”
+.venv/
+__pycache__/
+.DS_Store
