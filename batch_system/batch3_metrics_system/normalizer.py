@@ -817,10 +817,13 @@ def normalize_fear_greed_index(data: Dict[str, Any]) -> Optional[Dict[str, Any]]
 
     V4 Response Format (VERIFIED via runtime test):
         {"code": "0", "data": {
-            "data_list": [72, 68, 65, ...],  # index values 0-100, newest first
-            "price_list": [104000, 103500, ...],
-            "time_list": [1737158400, 1737072000, ...]
+            "data_list": [...],  # index values 0-100
+            "price_list": [...],
+            "time_list": [...]   # timestamps in ms, ASCENDING (old->new)
         }}
+
+    CRITICAL: time_list is ASCENDING (oldest first, newest last).
+    Must find max(time_list) to get latest value.
 
     Args:
         data: Raw API response with fear/greed history
@@ -830,6 +833,8 @@ def normalize_fear_greed_index(data: Dict[str, Any]) -> Optional[Dict[str, Any]]
         {"value": 72, "label": "Greed", "change_7d": 5.0}
         None if error or missing data
     """
+    DAY_MS = 86400000  # milliseconds per day
+
     try:
         # Check success code
         code = str(data.get("code", ""))
@@ -841,23 +846,36 @@ def normalize_fear_greed_index(data: Dict[str, Any]) -> Optional[Dict[str, Any]]
         if not isinstance(inner_data, dict):
             return None
 
-        # Extract data_list (index values)
+        # Extract parallel lists
         data_list = inner_data.get("data_list", [])
-        if not data_list or len(data_list) < 1:
+        time_list = inner_data.get("time_list", [])
+
+        if not data_list or not time_list or len(data_list) != len(time_list):
             return None
 
-        # Get latest value (first item = newest)
-        current_value = float(data_list[0])
+        # Find latest value by max timestamp
+        latest_idx = max(range(len(time_list)), key=lambda i: time_list[i])
+        latest_ts = time_list[latest_idx]
+        current_value = float(data_list[latest_idx])
 
         # Validate range (0-100)
         if current_value < 0 or current_value > 100:
             return None
 
-        # Calculate 7d change (if we have 7+ days of data)
+        # Calculate 7d change: find timestamp <= (latest - 7 days)
         change_7d = None
-        if len(data_list) >= 7:
-            value_7d_ago = float(data_list[6])
-            change_7d = round(current_value - value_7d_ago, 1)
+        target_ts = latest_ts - (7 * DAY_MS)
+
+        # Reverse scan to find prev value (timestamp <= target)
+        prev_idx = None
+        for i in range(len(time_list) - 1, -1, -1):
+            if time_list[i] <= target_ts:
+                prev_idx = i
+                break
+
+        if prev_idx is not None:
+            prev_value = float(data_list[prev_idx])
+            change_7d = round(current_value - prev_value, 1)
 
         # Assign label based on standard Fear & Greed ranges
         if current_value <= 24:
@@ -874,6 +892,91 @@ def normalize_fear_greed_index(data: Dict[str, Any]) -> Optional[Dict[str, Any]]
         return {
             "value": int(current_value),
             "label": label,
+            "change_7d": change_7d
+        }
+
+    except Exception:
+        return None
+
+
+# ============================================================================
+# NORMALIZER 12: Bitcoin Dominance Change (weekly_11)
+# ============================================================================
+
+def normalize_btc_dominance_change(data: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+    """
+    Extract Bitcoin Dominance with 7-day change
+
+    Metric: weekly_11_btc_dominance_change
+    Endpoint: /api/index/bitcoin-dominance
+    Params: (none required)
+
+    V4 Response Format (VERIFIED via runtime test):
+        {"code": "0", "data": [
+            {"timestamp": 1367366400000, "bitcoin_dominance": 94.35, ...},  # OLDEST
+            ...
+            {"timestamp": 1768608000000, "bitcoin_dominance": 59.07, ...}   # NEWEST
+        ]}
+
+    CRITICAL: data is ASCENDING (oldest first, newest last).
+    Must find max(timestamp) to get latest value.
+
+    Args:
+        data: Raw API response with bitcoin dominance history
+
+    Returns:
+        Dict with current value and 7d change:
+        {"value": 57.23, "change_7d": 0.34}
+        None if error or missing data
+    """
+    DAY_MS = 86400000  # milliseconds per day
+
+    try:
+        # Check success code
+        code = str(data.get("code", ""))
+        if code not in ("0", "00", "success"):
+            return None
+
+        # Extract data list
+        data_list = data.get("data", [])
+        if not data_list or len(data_list) < 1:
+            return None
+
+        # Find latest value by max timestamp
+        # NOTE: This endpoint uses "timestamp" key, not "time"
+        latest_idx = max(range(len(data_list)), key=lambda i: data_list[i].get("timestamp", 0))
+        latest = data_list[latest_idx]
+        latest_ts = latest.get("timestamp", 0)
+
+        current_value = latest.get("bitcoin_dominance")
+        if current_value is None:
+            return None
+
+        current_value = float(current_value)
+
+        # Validate range (0-100%)
+        if current_value < 0 or current_value > 100:
+            return None
+
+        # Calculate 7d change: find timestamp <= (latest - 7 days)
+        change_7d = None
+        target_ts = latest_ts - (7 * DAY_MS)
+
+        # Reverse scan to find prev value (timestamp <= target)
+        prev_idx = None
+        for i in range(len(data_list) - 1, -1, -1):
+            row_ts = data_list[i].get("timestamp", 0)
+            if row_ts <= target_ts:
+                prev_idx = i
+                break
+
+        if prev_idx is not None:
+            prev_value = data_list[prev_idx].get("bitcoin_dominance")
+            if prev_value is not None:
+                change_7d = round(current_value - float(prev_value), 2)
+
+        return {
+            "value": round(current_value, 2),
             "change_7d": change_7d
         }
 

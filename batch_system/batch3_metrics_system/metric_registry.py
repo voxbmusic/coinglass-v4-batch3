@@ -347,17 +347,23 @@ WEEKLY_METRICS: List[MetricDefinition] = [
         implementation_notes="CoinGlass /api/index/bitcoin-active-addresses"
     ),
     
-    # weekly_11 - BTC Dominance Change
-    create_registry_metric(
-        registry_id="weekly_11_btc_dominance_change",
+    # weekly_11 - BTC Dominance Change (IMPLEMENTED)
+    MetricDefinition(
+        id="weekly_11_btc_dominance_change",
         name="BTC Dominance Change",
         timeframe="7d",
         category="open_interest",
+        endpoint="/api/index/bitcoin-dominance",
+        params={},
+        api_confidence=APIConfidence.CONFIRMED,
+        default_status=MetricStatus.OK,
         data_source=DataSource.COINGLASS,
         min_plan=PlanTier.STARTUP,
+        implemented=True,
+        normalizer="normalize_btc_dominance_change",
         unit="percent",
         description="Change in BTC market cap dominance",
-        implementation_notes="CoinGlass /api/index/bitcoin-dominance"
+        implementation_notes="CoinGlass /api/index/bitcoin-dominance; returns {value, change_7d}"
     ),
     
     # weekly_12 - ETH/BTC Ratio Change

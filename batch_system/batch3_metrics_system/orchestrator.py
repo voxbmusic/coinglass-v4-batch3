@@ -120,7 +120,8 @@ class MetricOrchestrator:
             'normalize_liquidation_events': normalizer.normalize_liquidation_events,
             'normalize_coinbase_premium': normalizer.normalize_coinbase_premium,
             # Weekly normalizers
-            'normalize_fear_greed_index': normalizer.normalize_fear_greed_index
+            'normalize_fear_greed_index': normalizer.normalize_fear_greed_index,
+            'normalize_btc_dominance_change': normalizer.normalize_btc_dominance_change
         }
     
     def fetch_and_normalize(self, metric: MetricDefinition) -> MetricResult:
