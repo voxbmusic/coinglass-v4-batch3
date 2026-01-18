@@ -340,11 +340,11 @@ WEEKLY_METRICS: List[MetricDefinition] = [
         name="Active Addresses (7d)",
         timeframe="7d",
         category="open_interest",
-        data_source=DataSource.EXTERNAL,
-        min_plan=PlanTier.STANDARD,
+        data_source=DataSource.COINGLASS,
+        min_plan=PlanTier.STARTUP,
         unit="count",
         description="7-day average active addresses",
-        implementation_notes="Requires on-chain data"
+        implementation_notes="CoinGlass /api/index/bitcoin-active-addresses"
     ),
     
     # weekly_11 - BTC Dominance Change
@@ -353,11 +353,11 @@ WEEKLY_METRICS: List[MetricDefinition] = [
         name="BTC Dominance Change",
         timeframe="7d",
         category="open_interest",
-        data_source=DataSource.EXTERNAL,
+        data_source=DataSource.COINGLASS,
         min_plan=PlanTier.STARTUP,
         unit="percent",
         description="Change in BTC market cap dominance",
-        implementation_notes="Market cap data from CMC/CoinGecko"
+        implementation_notes="CoinGlass /api/index/bitcoin-dominance"
     ),
     
     # weekly_12 - ETH/BTC Ratio Change
@@ -370,7 +370,7 @@ WEEKLY_METRICS: List[MetricDefinition] = [
         min_plan=PlanTier.STARTUP,
         unit="percent",
         description="ETH relative strength vs BTC",
-        implementation_notes="7-day ratio change"
+        implementation_notes="CoinGlass /api/futures/price/history (ETH+BTC) -> ratio derived"
     ),
     
     # weekly_13 - Major Exchange Volume
@@ -418,11 +418,11 @@ WEEKLY_METRICS: List[MetricDefinition] = [
         name="Fear & Greed Index",
         timeframe="7d",
         category="open_interest",
-        data_source=DataSource.EXTERNAL,
+        data_source=DataSource.COINGLASS,
         min_plan=PlanTier.STARTUP,
         unit="index",
         description="Market sentiment indicator (0-100)",
-        implementation_notes="Alternative.me Fear & Greed"
+        implementation_notes="CoinGlass /api/index/fear-greed-history"
     ),
     
     # weekly_17 - Options Put/Call Ratio
@@ -431,11 +431,11 @@ WEEKLY_METRICS: List[MetricDefinition] = [
         name="Options Put/Call Ratio",
         timeframe="7d",
         category="open_interest",
-        data_source=DataSource.EXTERNAL,
-        min_plan=PlanTier.PREMIUM,
+        data_source=DataSource.COINGLASS,
+        min_plan=PlanTier.STARTUP,
         unit="ratio",
         description="Options positioning indicator",
-        implementation_notes="Deribit options data"
+        implementation_notes="CoinGlass /api/option/max-pain -> put_oi/call_oi derived"
     ),
     
     # weekly_18 - Market Cap Rank Changes
