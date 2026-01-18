@@ -121,7 +121,8 @@ class MetricOrchestrator:
             'normalize_coinbase_premium': normalizer.normalize_coinbase_premium,
             # Weekly normalizers
             'normalize_fear_greed_index': normalizer.normalize_fear_greed_index,
-            'normalize_btc_dominance_change': normalizer.normalize_btc_dominance_change
+            'normalize_btc_dominance_change': normalizer.normalize_btc_dominance_change,
+            'normalize_basis_spread': normalizer.normalize_basis_spread
         }
     
     def fetch_and_normalize(self, metric: MetricDefinition) -> MetricResult:

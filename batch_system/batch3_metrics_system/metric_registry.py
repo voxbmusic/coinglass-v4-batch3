@@ -256,17 +256,23 @@ WEEKLY_METRICS: List[MetricDefinition] = [
         implementation_notes="Weekly COT data from CFTC"
     ),
     
-    # weekly_04 - Basis Spread (7d)
-    create_registry_metric(
-        registry_id="weekly_04_basis_spread",
+    # weekly_04 - Basis Spread (7d) (IMPLEMENTED)
+    MetricDefinition(
+        id="weekly_04_basis_spread",
         name="Basis Spread (7d)",
         timeframe="7d",
         category="premium",
+        endpoint="/api/futures/basis/history",
+        params={"exchange": "Binance", "symbol": "BTCUSDT", "interval": "1d", "limit": "14"},
+        api_confidence=APIConfidence.CONFIRMED,
+        default_status=MetricStatus.OK,
         data_source=DataSource.COINGLASS,
         min_plan=PlanTier.STARTUP,
+        implemented=True,
+        normalizer="normalize_basis_spread",
         unit="percent",
         description="Average spot-futures gap over 7 days",
-        implementation_notes="7-day average of basis values"
+        implementation_notes="CoinGlass /api/futures/basis/history; Binance BTCUSDT; returns {value, change_7d}"
     ),
     
     # weekly_05 - Funding Rate Avg (7d)

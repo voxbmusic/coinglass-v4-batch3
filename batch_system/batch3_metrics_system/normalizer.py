@@ -984,6 +984,87 @@ def normalize_btc_dominance_change(data: Dict[str, Any]) -> Optional[Dict[str, A
         return None
 
 
+# ============================================================================
+# NORMALIZER 13: Basis Spread 7d (weekly_04)
+# ============================================================================
+
+def normalize_basis_spread(data: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+    """
+    Extract Futures Basis Spread with 7-day change
+
+    Metric: weekly_04_basis_spread
+    Endpoint: /api/futures/basis/history
+    Params: exchange=Binance, symbol=BTCUSDT, interval=1d, limit=14
+
+    V4 Response Format (VERIFIED via runtime test):
+        {"code": "0", "data": [
+            {"time": 1767830400000, "open_basis": 0.12, "close_basis": 0.15, ...},  # OLDEST
+            ...
+            {"time": 1768953600000, "open_basis": 0.18, "close_basis": 0.20, ...}   # NEWEST
+        ]}
+
+    CRITICAL: data is ASCENDING (oldest first, newest last).
+    Must find max(time) to get latest value.
+
+    Args:
+        data: Raw API response with basis history
+
+    Returns:
+        Dict with current value and 7d change:
+        {"value": 0.20, "change_7d": 0.05}
+        None if error or missing data
+    """
+    DAY_MS = 86400000  # milliseconds per day
+
+    try:
+        # Check success code
+        code = str(data.get("code", ""))
+        if code not in ("0", "00", "success"):
+            return None
+
+        # Extract data list
+        data_list = data.get("data", [])
+        if not data_list or len(data_list) < 1:
+            return None
+
+        # Find latest value by max timestamp
+        latest_idx = max(range(len(data_list)), key=lambda i: data_list[i].get("time", 0))
+        latest = data_list[latest_idx]
+        latest_ts = latest.get("time", 0)
+
+        # Get close_basis as the value
+        current_value = latest.get("close_basis")
+        if current_value is None:
+            return None
+
+        current_value = float(current_value)
+
+        # Calculate 7d change: find timestamp <= (latest - 7 days)
+        change_7d = None
+        target_ts = latest_ts - (7 * DAY_MS)
+
+        # Reverse scan to find prev value (timestamp <= target)
+        prev_idx = None
+        for i in range(len(data_list) - 1, -1, -1):
+            row_ts = data_list[i].get("time", 0)
+            if row_ts <= target_ts:
+                prev_idx = i
+                break
+
+        if prev_idx is not None:
+            prev_value = data_list[prev_idx].get("close_basis")
+            if prev_value is not None:
+                change_7d = round(current_value - float(prev_value), 4)
+
+        return {
+            "value": round(current_value, 4),
+            "change_7d": change_7d
+        }
+
+    except Exception:
+        return None
+
+
 # Helper function for unwrapping CoinGlass API response
 def _unwrap_coinglass_data(payload):
     """
