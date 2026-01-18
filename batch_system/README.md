@@ -24,11 +24,11 @@ else:
 - **IF FIRST SMOKE TEST OUTPUT SHOWS ABSURD VALUES (e.g., 0.2-1.0% or higher for 8h funding), THIS IS LIKELY A SCALE ISSUE**
 
 ### What Happens Next:
-1. Bartu runs smoke test → Gets funding rate value
+1. voxbmusic runs smoke test → Gets funding rate value
 2. If value looks wrong (too high/low by 10x-100x), Helm will:
    - Adjust threshold in helper function
    - Create new package
-   - No manual file edits by Bartu
+   - No manual file edits by voxbmusic
 
 ### Expected Ranges (for validation):
 - **Normal 8h funding rate:** 0.001% to 0.05% (1-50 bps)
