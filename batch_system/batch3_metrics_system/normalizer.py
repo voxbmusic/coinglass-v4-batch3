@@ -803,6 +803,84 @@ def normalize_coinbase_premium(data: Dict[str, Any]) -> Optional[Dict[str, Optio
     except Exception:
         return None
 
+# ============================================================================
+# NORMALIZER 11: Fear & Greed Index (weekly_16)
+# ============================================================================
+
+def normalize_fear_greed_index(data: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+    """
+    Extract Fear & Greed Index with 7-day trend
+
+    Metric: weekly_16_fear_greed_index
+    Endpoint: /api/index/fear-greed-history
+    Params: (none required)
+
+    V4 Response Format (VERIFIED via runtime test):
+        {"code": "0", "data": {
+            "data_list": [72, 68, 65, ...],  # index values 0-100, newest first
+            "price_list": [104000, 103500, ...],
+            "time_list": [1737158400, 1737072000, ...]
+        }}
+
+    Args:
+        data: Raw API response with fear/greed history
+
+    Returns:
+        Dict with current value, label, and 7d change:
+        {"value": 72, "label": "Greed", "change_7d": 5.0}
+        None if error or missing data
+    """
+    try:
+        # Check success code
+        code = str(data.get("code", ""))
+        if code not in ("0", "00", "success"):
+            return None
+
+        # Extract inner data object
+        inner_data = data.get("data", {})
+        if not isinstance(inner_data, dict):
+            return None
+
+        # Extract data_list (index values)
+        data_list = inner_data.get("data_list", [])
+        if not data_list or len(data_list) < 1:
+            return None
+
+        # Get latest value (first item = newest)
+        current_value = float(data_list[0])
+
+        # Validate range (0-100)
+        if current_value < 0 or current_value > 100:
+            return None
+
+        # Calculate 7d change (if we have 7+ days of data)
+        change_7d = None
+        if len(data_list) >= 7:
+            value_7d_ago = float(data_list[6])
+            change_7d = round(current_value - value_7d_ago, 1)
+
+        # Assign label based on standard Fear & Greed ranges
+        if current_value <= 24:
+            label = "Extreme Fear"
+        elif current_value <= 44:
+            label = "Fear"
+        elif current_value <= 55:
+            label = "Neutral"
+        elif current_value <= 75:
+            label = "Greed"
+        else:
+            label = "Extreme Greed"
+
+        return {
+            "value": int(current_value),
+            "label": label,
+            "change_7d": change_7d
+        }
+
+    except Exception:
+        return None
+
+
 # Helper function for unwrapping CoinGlass API response
 def _unwrap_coinglass_data(payload):
     """

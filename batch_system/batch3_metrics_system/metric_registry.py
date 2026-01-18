@@ -412,17 +412,23 @@ WEEKLY_METRICS: List[MetricDefinition] = [
         implementation_notes="Stablecoin peg deviation"
     ),
     
-    # weekly_16 - Fear & Greed Index
-    create_registry_metric(
-        registry_id="weekly_16_fear_greed_index",
+    # weekly_16 - Fear & Greed Index (IMPLEMENTED)
+    MetricDefinition(
+        id="weekly_16_fear_greed_index",
         name="Fear & Greed Index",
         timeframe="7d",
         category="open_interest",
+        endpoint="/api/index/fear-greed-history",
+        params={},
+        api_confidence=APIConfidence.CONFIRMED,
+        default_status=MetricStatus.OK,
         data_source=DataSource.COINGLASS,
         min_plan=PlanTier.STARTUP,
+        implemented=True,
+        normalizer="normalize_fear_greed_index",
         unit="index",
         description="Market sentiment indicator (0-100)",
-        implementation_notes="CoinGlass /api/index/fear-greed-history"
+        implementation_notes="CoinGlass /api/index/fear-greed-history; returns {value, label, change_7d}"
     ),
     
     # weekly_17 - Options Put/Call Ratio

@@ -120,28 +120,45 @@ def main():
     print("=" * 70)
 
     # ========================================================================
-    # WEEKLY SKELETON (NO DATA FETCH - DISPLAY ONLY)
+    # WEEKLY PANEL (HYBRID: IMPLEMENTED METRICS FETCH, OTHERS SKELETON)
     # ========================================================================
     print("\n" + "=" * 70)
-    print("  BTC - HAFTALIK SAVAS PANELI (WEEKLY SKELETON)")
+    print("  BTC - HAFTALIK SAVAS PANELI (WEEKLY)")
     print("=" * 70)
 
     weekly_metrics = pick_weekly_skeleton_metrics()
+    weekly_ok = 0
+    weekly_missing = 0
+    weekly_external = 0
+    weekly_locked = 0
+
     if not weekly_metrics:
         print("  [No weekly metrics found in registry]")
     else:
         for metric in weekly_metrics:
-            symbol, status_text = get_skeleton_status(metric)
-            print(f"  {symbol} {metric.name}: N/A [{status_text}]")
-
-    # Weekly summary counts
-    weekly_missing = sum(1 for m in weekly_metrics if get_skeleton_status(m)[1] == "MISSING")
-    weekly_external = sum(1 for m in weekly_metrics if get_skeleton_status(m)[1] == "EXTERNAL_REQUIRED")
-    weekly_locked = sum(1 for m in weekly_metrics if get_skeleton_status(m)[1] == "LOCKED")
+            if metric.implemented:
+                # Fetch real data for implemented metrics
+                result = orchestrator.fetch_and_normalize(metric)
+                if result.status == MetricStatus.OK:
+                    weekly_ok += 1
+                    print(f"  ✅ {metric.name}: {result.value}")
+                else:
+                    weekly_missing += 1
+                    print(f"  ❌ {metric.name}: N/A [MISSING]")
+            else:
+                # Skeleton display for non-implemented metrics
+                symbol, status_text = get_skeleton_status(metric)
+                if status_text == "EXTERNAL_REQUIRED":
+                    weekly_external += 1
+                elif status_text == "LOCKED":
+                    weekly_locked += 1
+                else:
+                    weekly_missing += 1
+                print(f"  {symbol} {metric.name}: N/A [{status_text}]")
 
     print("\n" + "-" * 70)
-    print(f"  WEEKLY SKELETON: {len(weekly_metrics)} metrics")
-    print(f"  ❌ MISSING: {weekly_missing} | 🔗 EXTERNAL: {weekly_external} | 🔒 LOCKED: {weekly_locked}")
+    print(f"  WEEKLY SUMMARY: {weekly_ok}/{len(weekly_metrics)} metrics OK")
+    print(f"  ✅ OK: {weekly_ok} | ❌ MISSING: {weekly_missing} | 🔗 EXTERNAL: {weekly_external} | 🔒 LOCKED: {weekly_locked}")
     print("=" * 70)
 
 if __name__ == "__main__":
