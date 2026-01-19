@@ -108,64 +108,73 @@ def normalize_total_oi(data: Dict[str, Any]) -> Optional[float]:
 def normalize_oi_change_1h(data: Dict[str, Any]) -> Optional[float]:
     """
     Calculate 1-hour percentage change in open interest
-    
+
     Metric: daily_02_oi_change_1h
     Endpoint: /api/futures/open-interest/aggregated-history
     Params: interval=1h, limit=2, symbol=BTC
-    
-    V4 Response Format:
+
+    V4 Response Format (can be ASC or DESC):
         {"code": "0", "data": [
-            {"time": 1768550400000, "close": 62342795495.894},
-            {"time": 1768546800000, "close": 62100000000.0}
+            {"time": 1768546800000, "close": 62100000000.0},
+            {"time": 1768550400000, "close": 62342795495.894}
         ]}
-    
+
+    CRITICAL: Data ordering can vary (ASC or DESC).
+    Must sort by timestamp and pick last 2 valid points.
+
     Args:
-        data: Raw API response with 2 datapoints (latest, 1h ago)
-    
+        data: Raw API response with 2+ datapoints
+
     Returns:
         Float percent change (e.g., 2.45 for +2.45%, -1.23 for -1.23%)
         None if error or insufficient data
-    
+
     Logic:
-        1. Extract latest and previous datapoints
-        2. Get close values for each
-        3. Calculate: ((latest - prev) / prev) * 100
-        4. Round to 2 decimals
+        1. Filter valid (time, close) pairs
+        2. Sort by timestamp ascending
+        3. Take last 2 points (prev, latest)
+        4. Calculate: ((latest - prev) / prev) * 100
+        5. Round to 2 decimals
     """
     try:
         # Check success code
         code = str(data.get("code", ""))
         if code not in ("0", "00", "success"):
             return None
-        
+
         # Extract data list
         data_list = data.get("data", [])
         if len(data_list) < 2:
             return None
-        
-        # Get latest and previous (data is newest-first)
-        latest = data_list[0]
-        previous = data_list[1]
-        
-        # Get close values
-        latest_close = latest.get("close")
-        prev_close = previous.get("close")
-        
-        if latest_close is None or prev_close is None:
+
+        # Build valid (time, close) pairs - filter out invalid rows
+        pairs = []
+        for row in data_list:
+            ts = row.get("time")
+            close = row.get("close")
+            if ts is None or close is None:
+                continue
+            try:
+                close_val = float(close)
+                if close_val > 0:
+                    pairs.append((int(ts), close_val))
+            except (ValueError, TypeError):
+                continue
+
+        if len(pairs) < 2:
             return None
-        
-        # Convert to float
-        latest_value = float(latest_close)
-        prev_value = float(prev_close)
-        
-        # Validate
-        if prev_value <= 0 or latest_value <= 0:
-            return None
-        
+
+        # Sort by timestamp ascending
+        pairs_sorted = sorted(pairs, key=lambda x: x[0])
+
+        # Take last 2 points
+        prev_ts, prev_value = pairs_sorted[-2]
+        latest_ts, latest_value = pairs_sorted[-1]
+
         # Calculate percent change
         percent_change = ((latest_value - prev_value) / prev_value) * 100
         return round(percent_change, 2)
-        
+
     except Exception:
         return None
 
@@ -177,54 +186,62 @@ def normalize_oi_change_1h(data: Dict[str, Any]) -> Optional[float]:
 def normalize_oi_change_4h(data: Dict[str, Any]) -> Optional[float]:
     """
     Calculate 4-hour percentage change in open interest
-    
+
     Metric: daily_03_oi_change_4h
     Endpoint: /api/futures/open-interest/aggregated-history
     Params: interval=4h, limit=2, symbol=BTC
-    
+
+    CRITICAL: Data ordering can vary (ASC or DESC).
+    Must sort by timestamp and pick last 2 valid points.
+
     Args:
-        data: Raw API response with 2 datapoints (latest, 4h ago)
-    
+        data: Raw API response with 2+ datapoints
+
     Returns:
         Float percent change
         None if error or insufficient data
-    
-    Logic: Identical to normalize_oi_change_1h but for 4h interval
+
+    Logic: Same as normalize_oi_change_1h - timestamp-safe
     """
     try:
         # Check success code
         code = str(data.get("code", ""))
         if code not in ("0", "00", "success"):
             return None
-        
+
         # Extract data list
         data_list = data.get("data", [])
         if len(data_list) < 2:
             return None
-        
-        # Get latest and previous
-        latest = data_list[0]
-        previous = data_list[1]
-        
-        # Get close values
-        latest_close = latest.get("close")
-        prev_close = previous.get("close")
-        
-        if latest_close is None or prev_close is None:
+
+        # Build valid (time, close) pairs - filter out invalid rows
+        pairs = []
+        for row in data_list:
+            ts = row.get("time")
+            close = row.get("close")
+            if ts is None or close is None:
+                continue
+            try:
+                close_val = float(close)
+                if close_val > 0:
+                    pairs.append((int(ts), close_val))
+            except (ValueError, TypeError):
+                continue
+
+        if len(pairs) < 2:
             return None
-        
-        # Convert to float
-        latest_value = float(latest_close)
-        prev_value = float(prev_close)
-        
-        # Validate
-        if prev_value <= 0 or latest_value <= 0:
-            return None
-        
+
+        # Sort by timestamp ascending
+        pairs_sorted = sorted(pairs, key=lambda x: x[0])
+
+        # Take last 2 points
+        prev_ts, prev_value = pairs_sorted[-2]
+        latest_ts, latest_value = pairs_sorted[-1]
+
         # Calculate percent change
         percent_change = ((latest_value - prev_value) / prev_value) * 100
         return round(percent_change, 2)
-        
+
     except Exception:
         return None
 
