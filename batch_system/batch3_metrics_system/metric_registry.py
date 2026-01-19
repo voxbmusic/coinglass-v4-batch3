@@ -372,17 +372,27 @@ WEEKLY_METRICS: List[MetricDefinition] = [
         implementation_notes="CoinGlass /api/index/bitcoin-dominance; returns {value, change_7d}"
     ),
     
-    # weekly_12 - ETH/BTC Ratio Change
-    create_registry_metric(
-        registry_id="weekly_12_eth_btc_ratio_change",
+    # weekly_12 - ETH/BTC Ratio Change (IMPLEMENTED - multi-endpoint)
+    MetricDefinition(
+        id="weekly_12_eth_btc_ratio_change",
         name="ETH/BTC Ratio Change",
         timeframe="7d",
         category="open_interest",
+        endpoint=None,  # Uses fetch_plan instead
+        params=None,
+        api_confidence=APIConfidence.CONFIRMED,
+        default_status=MetricStatus.OK,
         data_source=DataSource.COINGLASS,
         min_plan=PlanTier.STARTUP,
-        unit="percent",
+        implemented=True,
+        normalizer="normalize_eth_btc_ratio",
+        fetch_plan=[
+            {"name": "eth", "endpoint": "/api/spot/price/history", "params": {"exchange": "Binance", "symbol": "ETHUSDT", "interval": "1d", "limit": "8"}},
+            {"name": "btc", "endpoint": "/api/spot/price/history", "params": {"exchange": "Binance", "symbol": "BTCUSDT", "interval": "1d", "limit": "8"}}
+        ],
+        unit="ratio",
         description="ETH relative strength vs BTC",
-        implementation_notes="CoinGlass /api/futures/price/history (ETH+BTC) -> ratio derived"
+        implementation_notes="Multi-endpoint: spot/price/history for ETH + BTC; returns {value, change_7d}"
     ),
     
     # weekly_13 - Major Exchange Volume

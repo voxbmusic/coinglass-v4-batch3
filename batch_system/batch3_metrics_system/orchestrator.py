@@ -122,7 +122,8 @@ class MetricOrchestrator:
             # Weekly normalizers
             'normalize_fear_greed_index': normalizer.normalize_fear_greed_index,
             'normalize_btc_dominance_change': normalizer.normalize_btc_dominance_change,
-            'normalize_basis_spread': normalizer.normalize_basis_spread
+            'normalize_basis_spread': normalizer.normalize_basis_spread,
+            'normalize_eth_btc_ratio': normalizer.normalize_eth_btc_ratio
         }
     
     def fetch_and_normalize(self, metric: MetricDefinition) -> MetricResult:
@@ -190,26 +191,36 @@ class MetricOrchestrator:
     def _fetch_raw_data(self, metric: MetricDefinition) -> Optional[Dict[str, Any]]:
         """
         Fetch raw data from CoinGlass API
-        
+
+        Supports two modes:
+        1. Single endpoint: Uses metric.endpoint + metric.params
+        2. Multi-endpoint (fetch_plan): Fetches multiple endpoints, combines results
+
         Args:
-            metric: MetricDefinition with endpoint and params
-        
+            metric: MetricDefinition with endpoint/params OR fetch_plan
+
         Returns:
-            Raw API response data (APIResponse.data)
-            None if fetch failed
+            Single endpoint: Raw API response data (APIResponse.data)
+            Multi-endpoint: Combined dict {"name1": data1, "name2": data2, ...}
+            None if any fetch failed
         """
         try:
+            # Check for multi-endpoint fetch_plan
+            if metric.fetch_plan:
+                return self._fetch_multi_endpoint(metric.fetch_plan)
+
+            # Single endpoint mode (original behavior)
             # Normalize params using Batch 2 normalize_params
             normalized_params = normalize_params(metric.params or {}, metric.endpoint)
-            
+
             # Fetch from API
             response = self.api.fetch(metric.endpoint, normalized_params)
-            
+
             # Extract data from APIResponse
             # In Batch 2, response is APIResponse object with .data attribute
             if response is None:
                 return None
-            
+
             # Handle both APIResponse object and dict (for compatibility)
             if hasattr(response, 'data'):
                 return response.data
@@ -221,7 +232,50 @@ class MetricOrchestrator:
         except Exception:
             # Any fetch error => return None
             return None
-    
+
+    def _fetch_multi_endpoint(self, fetch_plan: List[Dict[str, Any]]) -> Optional[Dict[str, Any]]:
+        """
+        Fetch multiple endpoints and combine results
+
+        Generic multi-endpoint support for metrics that need data from multiple API calls.
+        Each item in fetch_plan must have: name, endpoint, params
+
+        Args:
+            fetch_plan: List of {"name": str, "endpoint": str, "params": dict}
+
+        Returns:
+            Combined dict: {"name1": raw_response1, "name2": raw_response2, ...}
+            None if ANY fetch fails (all-or-nothing)
+        """
+        combined = {}
+
+        for item in fetch_plan:
+            name = item.get("name")
+            endpoint = item.get("endpoint")
+            params = item.get("params", {})
+
+            if not name or not endpoint:
+                return None
+
+            # Normalize params
+            normalized_params = normalize_params(params, endpoint)
+
+            # Fetch from API
+            response = self.api.fetch(endpoint, normalized_params)
+
+            if response is None:
+                return None  # All-or-nothing: any failure => None
+
+            # Extract raw data (full response for normalizer to handle)
+            if hasattr(response, 'data'):
+                combined[name] = response.data
+            elif isinstance(response, dict):
+                combined[name] = response
+            else:
+                return None
+
+        return combined
+
     def _normalize_data(self, metric: MetricDefinition, raw_data: Dict[str, Any]) -> Optional[Any]:
         """
         Normalize raw data using appropriate normalizer function

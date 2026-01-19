@@ -1065,6 +1065,108 @@ def normalize_basis_spread(data: Dict[str, Any]) -> Optional[Dict[str, Any]]:
         return None
 
 
+# ============================================================================
+# NORMALIZER 14: ETH/BTC Ratio Change (weekly_12)
+# ============================================================================
+
+def normalize_eth_btc_ratio(data: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+    """
+    Calculate ETH/BTC ratio from spot prices with 7-day change
+
+    Metric: weekly_12_eth_btc_ratio_change
+    Fetch Plan (multi-endpoint):
+        - eth: /api/spot/price/history (Binance, ETHUSDT, 1d, limit=8)
+        - btc: /api/spot/price/history (Binance, BTCUSDT, 1d, limit=8)
+
+    Input Format (from orchestrator fetch_plan):
+        {
+            "eth": {"code": "0", "data": [{"time": ms, "close": "3217.2", ...}, ...]},
+            "btc": {"code": "0", "data": [{"time": ms, "close": "92972.06", ...}, ...]}
+        }
+
+    CRITICAL: data lists are ASCENDING (oldest first, newest last).
+    Must find max(time) to get latest value.
+
+    Args:
+        data: Combined dict with "eth" and "btc" raw API responses
+
+    Returns:
+        Dict with ratio and 7d change:
+        {"value": 0.03460394, "change_7d": 0.00069509}
+        None if error or missing data
+    """
+    DAY_MS = 86400000  # milliseconds per day
+
+    def extract_latest_and_prev_7d(raw_response: Dict[str, Any]):
+        """Extract latest and 7d-ago close values from spot price history"""
+        code = str(raw_response.get("code", ""))
+        if code not in ("0", "00", "success"):
+            return None, None
+
+        data_list = raw_response.get("data", [])
+        if not data_list:
+            return None, None
+
+        # Build (time, close) pairs
+        pairs = []
+        for row in data_list:
+            ts = row.get("time")
+            close = row.get("close")
+            if ts is None or close is None:
+                continue
+            pairs.append((int(ts), float(close)))
+
+        if not pairs:
+            return None, None
+
+        # Find latest by max timestamp
+        latest_ts, latest_val = max(pairs, key=lambda x: x[0])
+        target_ts = latest_ts - (7 * DAY_MS)
+
+        # Reverse scan for 7d-ago value
+        pairs_sorted = sorted(pairs, key=lambda x: x[0])
+        prev_val = None
+        for ts, val in reversed(pairs_sorted):
+            if ts <= target_ts:
+                prev_val = val
+                break
+
+        return latest_val, prev_val
+
+    try:
+        # Extract ETH and BTC data
+        eth_raw = data.get("eth")
+        btc_raw = data.get("btc")
+
+        if not eth_raw or not btc_raw:
+            return None
+
+        eth_latest, eth_prev = extract_latest_and_prev_7d(eth_raw)
+        btc_latest, btc_prev = extract_latest_and_prev_7d(btc_raw)
+
+        if eth_latest is None or btc_latest is None:
+            return None
+        if btc_latest <= 0:
+            return None
+
+        # Calculate current ratio
+        ratio_latest = eth_latest / btc_latest
+
+        # Calculate 7d change if we have previous values
+        change_7d = None
+        if eth_prev is not None and btc_prev is not None and btc_prev > 0:
+            ratio_prev = eth_prev / btc_prev
+            change_7d = round(ratio_latest - ratio_prev, 8)
+
+        return {
+            "value": round(ratio_latest, 8),
+            "change_7d": change_7d
+        }
+
+    except Exception:
+        return None
+
+
 # Helper function for unwrapping CoinGlass API response
 def _unwrap_coinglass_data(payload):
     """

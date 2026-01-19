@@ -21,8 +21,8 @@ CATEGORY STANDARD (CONTRACT):
 - Not Enum in Batch 3, but must use these exact values
 """
 
-from dataclasses import dataclass
-from typing import Optional, Dict, Any
+from dataclasses import dataclass, field
+from typing import Optional, Dict, Any, List
 from enum import Enum
 import re
 import warnings
@@ -155,7 +155,14 @@ class MetricDefinition:
     # Implementation status
     implemented: bool = False
     normalizer: Optional[str] = None
-    
+
+    # Multi-endpoint support (optional)
+    # For metrics that require multiple API calls (e.g., ETH/BTC ratio needs both prices)
+    # Format: [{"name": "eth", "endpoint": "/api/...", "params": {...}}, ...]
+    # If set, orchestrator fetches all endpoints and passes combined data to normalizer
+    # Normalizer receives: {"eth": <raw_response>, "btc": <raw_response>, ...}
+    fetch_plan: Optional[List[Dict[str, Any]]] = None
+
     # Metadata
     unit: str = ""
     description: str = ""
@@ -227,6 +234,7 @@ class MetricDefinition:
             'min_plan': self.min_plan.value,
             'implemented': self.implemented,
             'normalizer': self.normalizer,
+            'fetch_plan': self.fetch_plan,
             'unit': self.unit,
             'description': self.description,
             'implementation_notes': self.implementation_notes
