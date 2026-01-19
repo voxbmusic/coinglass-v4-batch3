@@ -275,17 +275,23 @@ WEEKLY_METRICS: List[MetricDefinition] = [
         implementation_notes="CoinGlass /api/futures/basis/history; Binance BTCUSDT; returns {value, change_7d}"
     ),
     
-    # weekly_05 - Funding Rate Avg (7d)
-    create_registry_metric(
-        registry_id="weekly_05_funding_rate_avg",
+    # weekly_05 - Funding Rate Avg (7d) (IMPLEMENTED)
+    MetricDefinition(
+        id="weekly_05_funding_rate_avg",
         name="Funding Rate Avg (7d)",
         timeframe="7d",
         category="funding",
+        endpoint="/api/futures/funding-rate/history",
+        params={"exchange": "Binance", "symbol": "BTCUSDT", "interval": "1d", "limit": "14"},
+        api_confidence=APIConfidence.CONFIRMED,
+        default_status=MetricStatus.OK,
         data_source=DataSource.COINGLASS,
         min_plan=PlanTier.STARTUP,
+        implemented=True,
+        normalizer="normalize_funding_rate_avg_7d",
         unit="percent",
         description="7-day average funding rate",
-        implementation_notes="Mean of funding rates over 7 days"
+        implementation_notes="CoinGlass /api/futures/funding-rate/history; 14 daily bars; returns {value, change_7d}"
     ),
     
     # weekly_06 - Long Liquidations (7d)

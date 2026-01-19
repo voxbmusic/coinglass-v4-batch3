@@ -1167,6 +1167,86 @@ def normalize_eth_btc_ratio(data: Dict[str, Any]) -> Optional[Dict[str, Any]]:
         return None
 
 
+# ============================================================================
+# NORMALIZER 15: Funding Rate Avg 7d (weekly_05)
+# ============================================================================
+
+def normalize_funding_rate_avg_7d(data: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+    """
+    Calculate 7-day average funding rate with week-over-week change
+
+    Metric: weekly_05_funding_rate_avg
+    Endpoint: /api/futures/funding-rate/history
+    Params: exchange=Binance, symbol=BTCUSDT, interval=1d, limit=14
+
+    V4 Response Format (VERIFIED via runtime test):
+        {"code": "0", "data": [
+            {"time": 1767657600000, "open": "-0.001376", "close": "0.006618", ...},  # OLDEST
+            ...
+            {"time": 1768694400000, "open": "0.003502", "close": "...", ...}         # NEWEST
+        ]}
+
+    CRITICAL: data is ASCENDING (oldest first, newest last).
+    We need 14 days to calculate current 7d avg and previous 7d avg.
+
+    Args:
+        data: Raw API response with funding rate history (14 daily bars)
+
+    Returns:
+        Dict with 7d average and week-over-week change:
+        {"value": 0.00345, "change_7d": 0.00012}
+        None if error or insufficient data (< 14 bars)
+    """
+    try:
+        # Check success code
+        code = str(data.get("code", ""))
+        if code not in ("0", "00", "success"):
+            return None
+
+        # Extract data list
+        data_list = data.get("data", [])
+        if not data_list or len(data_list) < 14:
+            return None  # Need 14 days for current + previous week
+
+        # Build (time, close) pairs
+        pairs = []
+        for row in data_list:
+            ts = row.get("time")
+            close = row.get("close")
+            if ts is None or close is None:
+                continue
+            pairs.append((int(ts), float(close)))
+
+        if len(pairs) < 14:
+            return None
+
+        # Sort by timestamp (ascending)
+        pairs_sorted = sorted(pairs, key=lambda x: x[0])
+
+        # Take last 14 days
+        last_14 = pairs_sorted[-14:]
+
+        # Current week: last 7 bars (most recent)
+        current_week = last_14[-7:]
+        # Previous week: first 7 bars of last_14
+        prev_week = last_14[:7]
+
+        # Calculate averages
+        current_avg = sum(val for _, val in current_week) / len(current_week)
+        prev_avg = sum(val for _, val in prev_week) / len(prev_week)
+
+        # Change is current - previous
+        change_7d = current_avg - prev_avg
+
+        return {
+            "value": round(current_avg, 6),
+            "change_7d": round(change_7d, 6)
+        }
+
+    except Exception:
+        return None
+
+
 # Helper function for unwrapping CoinGlass API response
 def _unwrap_coinglass_data(payload):
     """
