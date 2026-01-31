@@ -435,7 +435,7 @@ WEEKLY_METRICS: List[MetricDefinition] = [
         normalizer="normalize_major_exchange_volume_7d",
         unit="billion_usd",
         description="7-day taker volume on major exchanges (proxy for perp volume)",
-        implementation_notes="CoinGlass aggregated-taker-buy-sell-volume; returns {value, change_7d} in billions USD"
+        implementation_notes="Startup plan limitation: uses aggregated taker buy/sell volume as proxy for exchange volume. Returns {value, change_7d} in billions USD."
     ),
 
     # weekly_14 - Perp Volume Change (IMPLEMENTED)
@@ -454,7 +454,7 @@ WEEKLY_METRICS: List[MetricDefinition] = [
         normalizer="normalize_perp_volume_change_7d",
         unit="percent",
         description="7-day change in perpetual futures volume (percent)",
-        implementation_notes="CoinGlass aggregated-taker-buy-sell-volume; returns {value, change_7d} where change_7d is PERCENT"
+        implementation_notes="Startup plan limitation: uses aggregated taker buy/sell volume as proxy for perp volume. Returns {value, change_7d} where change_7d is PERCENT."
     ),
     
     # weekly_15 - USDT Premium (7d)
