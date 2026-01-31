@@ -419,30 +419,42 @@ WEEKLY_METRICS: List[MetricDefinition] = [
         implementation_notes="Multi-endpoint: spot/price/history for ETH + BTC; returns {value, change_7d}"
     ),
     
-    # weekly_13 - Major Exchange Volume
-    create_registry_metric(
-        registry_id="weekly_13_major_exchange_volume",
-        name="Major Exchange Volume",
+    # weekly_13 - Major Exchange Volume (IMPLEMENTED)
+    MetricDefinition(
+        id="weekly_13_major_exchange_volume",
+        name="Major Exchange Volume (7d)",
         timeframe="7d",
         category="open_interest",
+        endpoint="/api/futures/aggregated-taker-buy-sell-volume/history",
+        params={"symbol": "BTC", "interval": "1d", "limit": "14", "exchange_list": "Binance,OKX,Bybit,Bitget,Gate"},
+        api_confidence=APIConfidence.CONFIRMED,
+        default_status=MetricStatus.OK,
         data_source=DataSource.COINGLASS,
         min_plan=PlanTier.STARTUP,
+        implemented=True,
+        normalizer="normalize_major_exchange_volume_7d",
         unit="billion_usd",
-        description="7-day spot volume on major exchanges",
-        implementation_notes="Aggregate spot volume"
+        description="7-day taker volume on major exchanges (proxy for perp volume)",
+        implementation_notes="CoinGlass aggregated-taker-buy-sell-volume; returns {value, change_7d} in billions USD"
     ),
-    
-    # weekly_14 - Perp Volume Change
-    create_registry_metric(
-        registry_id="weekly_14_perp_volume_change",
-        name="Perp Volume Change",
+
+    # weekly_14 - Perp Volume Change (IMPLEMENTED)
+    MetricDefinition(
+        id="weekly_14_perp_volume_change",
+        name="Perp Volume Change (7d)",
         timeframe="7d",
         category="open_interest",
+        endpoint="/api/futures/aggregated-taker-buy-sell-volume/history",
+        params={"symbol": "BTC", "interval": "1d", "limit": "14", "exchange_list": "Binance,OKX,Bybit,Bitget,Gate"},
+        api_confidence=APIConfidence.CONFIRMED,
+        default_status=MetricStatus.OK,
         data_source=DataSource.COINGLASS,
         min_plan=PlanTier.STARTUP,
+        implemented=True,
+        normalizer="normalize_perp_volume_change_7d",
         unit="percent",
-        description="7-day change in perpetual futures volume",
-        implementation_notes="Derivatives activity trend"
+        description="7-day change in perpetual futures volume (percent)",
+        implementation_notes="CoinGlass aggregated-taker-buy-sell-volume; returns {value, change_7d} where change_7d is PERCENT"
     ),
     
     # weekly_15 - USDT Premium (7d)

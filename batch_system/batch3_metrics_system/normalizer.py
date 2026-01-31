@@ -1488,6 +1488,148 @@ def normalize_oi_trend_7d(data: Dict[str, Any]) -> Optional[Dict[str, Any]]:
         return None
 
 
+# ============================================================================
+# NORMALIZER 19/20: Taker Volume 7d Base (weekly_13/weekly_14)
+# ============================================================================
+
+def _normalize_taker_volume_7d_base(data: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+    """
+    Base normalizer for 7-day taker buy/sell volume (proxy for perp volume)
+
+    This is a PRIVATE helper - not called directly by orchestrator.
+    Called by weekly_13 and weekly_14 wrapper normalizers.
+
+    Metric: weekly_13_major_exchange_volume + weekly_14_perp_volume_change
+    Endpoint: /api/futures/aggregated-taker-buy-sell-volume/history
+    Params: symbol=BTC, interval=1d, limit=14, exchange_list=Binance,OKX,Bybit,Bitget,Gate
+
+    V4 Response Format (VERIFIED via runtime POC-3):
+        {"code": "0", "data": [
+            {"time": 1768694400000,
+             "aggregated_buy_volume_usd": 8402754914.6251,
+             "aggregated_sell_volume_usd": 8994619359.6236},
+            ...
+        ]}
+
+    CRITICAL: data is ASC (oldest first, newest last).
+    We need 14 days to calculate current 7d sum and previous 7d sum.
+
+    Returns:
+        Dict with both current and previous 7d totals:
+        {
+            "curr7_total_bil": 150.5,      # current 7d total (billions)
+            "prev7_total_bil": 140.2,      # previous 7d total (billions)
+            "change_bil": 10.3,            # absolute change (billions)
+            "pct": 7.35                     # percent change vs prev7
+        }
+        None if error or insufficient data
+    """
+    try:
+        # Check success code
+        code = str(data.get("code", ""))
+        if code not in ("0", "00", "success"):
+            return None
+
+        # Extract data list
+        data_list = data.get("data", [])
+        if not data_list or len(data_list) < 14:
+            return None
+
+        # Build valid (time, buy, sell) tuples
+        rows = []
+        for row in data_list:
+            ts = row.get("time")
+            buy_val = row.get("aggregated_buy_volume_usd")
+            sell_val = row.get("aggregated_sell_volume_usd")
+            if ts is None or buy_val is None or sell_val is None:
+                continue
+            try:
+                rows.append((int(ts), float(buy_val), float(sell_val)))
+            except (ValueError, TypeError):
+                continue
+
+        if len(rows) < 14:
+            return None
+
+        # Sort by timestamp ascending
+        rows_sorted = sorted(rows, key=lambda x: x[0])
+
+        # Take last 14 days
+        last_14 = rows_sorted[-14:]
+
+        # Current week: last 7 bars (most recent)
+        current_week = last_14[-7:]
+        # Previous week: first 7 bars of last_14
+        prev_week = last_14[:7]
+
+        # Calculate sums (buy + sell = total volume)
+        curr7_total = sum(r[1] + r[2] for r in current_week)
+        prev7_total = sum(r[1] + r[2] for r in prev_week)
+
+        # Convert to billions
+        curr7_total_bil = curr7_total / 1e9
+        prev7_total_bil = prev7_total / 1e9
+        change_bil = curr7_total_bil - prev7_total_bil
+
+        # Calculate percent change
+        pct = None
+        if prev7_total_bil > 0:
+            pct = (change_bil / prev7_total_bil) * 100
+
+        return {
+            "curr7_total_bil": curr7_total_bil,
+            "prev7_total_bil": prev7_total_bil,
+            "change_bil": change_bil,
+            "pct": pct
+        }
+
+    except Exception:
+        return None
+
+
+def normalize_major_exchange_volume_7d(data: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+    """
+    Wrapper for weekly_13: Major Exchange Volume (7d)
+
+    Calls base normalizer and returns absolute volume + change in billions.
+
+    Returns:
+        {"value": 150.5, "change_7d": 10.3}  (in billions USD)
+        None if error
+    """
+    base = _normalize_taker_volume_7d_base(data)
+    if base is None:
+        return None
+
+    return {
+        "value": round(base["curr7_total_bil"], 2),
+        "change_7d": round(base["change_bil"], 2)
+    }
+
+
+def normalize_perp_volume_change_7d(data: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+    """
+    Wrapper for weekly_14: Perp Volume Change (7d)
+
+    Calls base normalizer and returns current volume + percent change.
+
+    Returns:
+        {"value": 150.5, "change_7d": 7.35}  (value in billions, change_7d is PERCENT)
+        None if error
+    """
+    base = _normalize_taker_volume_7d_base(data)
+    if base is None:
+        return None
+
+    # Lupo spec: change_7d is PERCENT for weekly_14
+    pct_change = base["pct"] if base["pct"] is not None else 0.0
+
+    return {
+        "value": round(base["curr7_total_bil"], 2),
+        "change_7d": round(pct_change, 2)
+    }
+
+
 # Helper function for unwrapping CoinGlass API response
 def _unwrap_coinglass_data(payload):
     """
