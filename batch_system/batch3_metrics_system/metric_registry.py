@@ -217,17 +217,23 @@ DAILY_METRICS: List[MetricDefinition] = [
 # New weekly metrics must be added to the END with weekly_19, weekly_20, etc.
 
 WEEKLY_METRICS: List[MetricDefinition] = [
-    # weekly_01 - OI Trend (7d)
-    create_registry_metric(
-        registry_id="weekly_01_oi_trend",
+    # weekly_01 - OI Trend (7d) (IMPLEMENTED)
+    MetricDefinition(
+        id="weekly_01_oi_trend",
         name="OI Trend (7d)",
         timeframe="7d",
         category="open_interest",
+        endpoint="/api/futures/open-interest/aggregated-history",
+        params={"symbol": "BTC", "interval": "1d", "limit": "14"},
+        api_confidence=APIConfidence.CONFIRMED,
+        default_status=MetricStatus.OK,
         data_source=DataSource.COINGLASS,
         min_plan=PlanTier.STARTUP,
-        unit="direction",
-        description="7-day open interest direction (up/down/flat)",
-        implementation_notes="Compare current OI vs 7 days ago"
+        implemented=True,
+        normalizer="normalize_oi_trend_7d",
+        unit="billion_usd",
+        description="7-day open interest trend (current OI + 7d delta)",
+        implementation_notes="CoinGlass aggregated-history; returns {value, change_7d} in billions USD"
     ),
     
     # weekly_02 - CME OI (7d)

@@ -1397,6 +1397,97 @@ def normalize_short_liquidations_7d(data: Dict[str, Any]) -> Optional[Dict[str, 
     }
 
 
+# ============================================================================
+# NORMALIZER 18: OI Trend 7d (weekly_01)
+# ============================================================================
+
+def normalize_oi_trend_7d(data: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+    """
+    Calculate 7-day Open Interest trend (net change)
+
+    Metric: weekly_01_oi_trend
+    Endpoint: /api/futures/open-interest/aggregated-history
+    Params: symbol=BTC, interval=1d, limit=14
+
+    V4 Response Format (VERIFIED via runtime test):
+        {"code": "0", "data": [
+            {"time": 1768694400000, "open": "61604995533", "close": "60884170162", ...},
+            ...
+            {"time": 1769817600000, "open": "58925778501", "close": 57260131551.4818}
+        ]}
+
+    CRITICAL:
+    - Data can be ASC or DESC; always sort by timestamp
+    - close values can be string or numeric; always float()
+
+    Calculation (Lupo spec A - net change):
+    - prev7 = first 7 days of sorted last 14
+    - curr7 = last 7 days of sorted last 14
+    - value = curr7_last_close (latest OI in billions)
+    - change_7d = curr7_last_close - prev7_last_close (delta in billions)
+
+    Args:
+        data: Raw API response with 14 daily OI bars
+
+    Returns:
+        {"value": 62.5, "change_7d": 1.2}  (in billions USD)
+        None if error or insufficient data
+    """
+    try:
+        # Check success code
+        code = str(data.get("code", ""))
+        if code not in ("0", "00", "success"):
+            return None
+
+        # Extract data list
+        data_list = data.get("data", [])
+        if not data_list or len(data_list) < 14:
+            return None
+
+        # Build valid (time, close) pairs
+        pairs = []
+        for row in data_list:
+            ts = row.get("time")
+            close = row.get("close")
+            if ts is None or close is None:
+                continue
+            try:
+                close_val = float(close)
+                if close_val > 0:
+                    pairs.append((int(ts), close_val))
+            except (ValueError, TypeError):
+                continue
+
+        if len(pairs) < 14:
+            return None
+
+        # Sort by timestamp ascending
+        pairs_sorted = sorted(pairs, key=lambda x: x[0])
+
+        # Take last 14 days
+        last_14 = pairs_sorted[-14:]
+
+        # prev7 = first 7 (older), curr7 = last 7 (newer)
+        prev7 = last_14[:7]
+        curr7 = last_14[-7:]
+
+        # Get last close of each window
+        prev7_last_close = prev7[-1][1]  # Last day of previous week
+        curr7_last_close = curr7[-1][1]  # Last day of current week (latest)
+
+        # Convert to billions
+        value_billions = curr7_last_close / 1e9
+        change_billions = (curr7_last_close - prev7_last_close) / 1e9
+
+        return {
+            "value": round(value_billions, 2),
+            "change_7d": round(change_billions, 2)
+        }
+
+    except Exception:
+        return None
+
+
 # Helper function for unwrapping CoinGlass API response
 def _unwrap_coinglass_data(payload):
     """
