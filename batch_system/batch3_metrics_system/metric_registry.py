@@ -294,30 +294,42 @@ WEEKLY_METRICS: List[MetricDefinition] = [
         implementation_notes="CoinGlass /api/futures/funding-rate/history; 14 daily bars; returns {value, change_7d}"
     ),
     
-    # weekly_06 - Long Liquidations (7d)
-    create_registry_metric(
-        registry_id="weekly_06_long_liquidations",
+    # weekly_06 - Long Liquidations (7d) (IMPLEMENTED)
+    MetricDefinition(
+        id="weekly_06_long_liquidations",
         name="Long Liquidations (7d)",
         timeframe="7d",
         category="liquidations",
+        endpoint="/api/futures/liquidation/aggregated-history",
+        params={"symbol": "BTC", "interval": "1d", "limit": "14", "exchange_list": "Binance,OKX,Bybit,Bitget,Gate"},
+        api_confidence=APIConfidence.CONFIRMED,
+        default_status=MetricStatus.OK,
         data_source=DataSource.COINGLASS,
         min_plan=PlanTier.STARTUP,
+        implemented=True,
+        normalizer="normalize_long_liquidations_7d",
         unit="million_usd",
         description="Total long liquidation volume over 7 days",
-        implementation_notes="Sum of long liquidations"
+        implementation_notes="CoinGlass aggregated-history; returns {value, change_7d} in millions USD"
     ),
-    
-    # weekly_07 - Short Liquidations (7d)
-    create_registry_metric(
-        registry_id="weekly_07_short_liquidations",
+
+    # weekly_07 - Short Liquidations (7d) (IMPLEMENTED)
+    MetricDefinition(
+        id="weekly_07_short_liquidations",
         name="Short Liquidations (7d)",
         timeframe="7d",
         category="liquidations",
+        endpoint="/api/futures/liquidation/aggregated-history",
+        params={"symbol": "BTC", "interval": "1d", "limit": "14", "exchange_list": "Binance,OKX,Bybit,Bitget,Gate"},
+        api_confidence=APIConfidence.CONFIRMED,
+        default_status=MetricStatus.OK,
         data_source=DataSource.COINGLASS,
         min_plan=PlanTier.STARTUP,
+        implemented=True,
+        normalizer="normalize_short_liquidations_7d",
         unit="million_usd",
         description="Total short liquidation volume over 7 days",
-        implementation_notes="Sum of short liquidations"
+        implementation_notes="CoinGlass aggregated-history; returns {value, change_7d} in millions USD"
     ),
     
     # weekly_08 - Net Flow (7d)

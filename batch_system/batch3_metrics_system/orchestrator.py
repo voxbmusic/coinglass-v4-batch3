@@ -124,7 +124,9 @@ class MetricOrchestrator:
             'normalize_btc_dominance_change': normalizer.normalize_btc_dominance_change,
             'normalize_basis_spread': normalizer.normalize_basis_spread,
             'normalize_eth_btc_ratio': normalizer.normalize_eth_btc_ratio,
-            'normalize_funding_rate_avg_7d': normalizer.normalize_funding_rate_avg_7d
+            'normalize_funding_rate_avg_7d': normalizer.normalize_funding_rate_avg_7d,
+            'normalize_long_liquidations_7d': normalizer.normalize_long_liquidations_7d,
+            'normalize_short_liquidations_7d': normalizer.normalize_short_liquidations_7d
         }
     
     def fetch_and_normalize(self, metric: MetricDefinition) -> MetricResult:

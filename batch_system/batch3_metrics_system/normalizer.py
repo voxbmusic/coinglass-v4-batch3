@@ -1264,6 +1264,139 @@ def normalize_funding_rate_avg_7d(data: Dict[str, Any]) -> Optional[Dict[str, An
         return None
 
 
+# ============================================================================
+# NORMALIZER 16/17: Liquidations 7d Base (weekly_06/weekly_07)
+# ============================================================================
+
+def _normalize_liquidations_7d_base(data: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+    """
+    Base normalizer for 7-day liquidation totals (long and short)
+
+    This is a PRIVATE helper - not called directly by orchestrator.
+    Called by weekly_06 and weekly_07 wrapper normalizers.
+
+    Metric: weekly_06_long_liquidations + weekly_07_short_liquidations
+    Endpoint: /api/futures/liquidation/aggregated-history
+    Params: symbol=BTC, interval=1d, limit=14, exchange_list=Binance,OKX,Bybit,Bitget,Gate
+
+    V4 Response Format (VERIFIED via runtime test):
+        {"code": "0", "data": [
+            {"time": 1768694400000,
+             "aggregated_long_liquidation_usd": 37623796.34,
+             "aggregated_short_liquidation_usd": 1962397.07},
+            ...
+        ]}
+
+    CRITICAL: data is ASC (oldest first, newest last in practice).
+    We need 14 days to calculate current 7d sum and previous 7d sum.
+
+    Returns:
+        Dict with both long and short 7d totals and changes:
+        {
+            "long_7d": 500000000.0,
+            "long_change_7d": 50000000.0,
+            "short_7d": 100000000.0,
+            "short_change_7d": 10000000.0
+        }
+        None if error or insufficient data
+    """
+    try:
+        # Check success code
+        code = str(data.get("code", ""))
+        if code not in ("0", "00", "success"):
+            return None
+
+        # Extract data list
+        data_list = data.get("data", [])
+        if not data_list or len(data_list) < 14:
+            return None
+
+        # Build valid (time, long, short) tuples
+        rows = []
+        for row in data_list:
+            ts = row.get("time")
+            long_val = row.get("aggregated_long_liquidation_usd")
+            short_val = row.get("aggregated_short_liquidation_usd")
+            if ts is None or long_val is None or short_val is None:
+                continue
+            try:
+                rows.append((int(ts), float(long_val), float(short_val)))
+            except (ValueError, TypeError):
+                continue
+
+        if len(rows) < 14:
+            return None
+
+        # Sort by timestamp ascending
+        rows_sorted = sorted(rows, key=lambda x: x[0])
+
+        # Take last 14 days
+        last_14 = rows_sorted[-14:]
+
+        # Current week: last 7 bars (most recent)
+        current_week = last_14[-7:]
+        # Previous week: first 7 bars of last_14
+        prev_week = last_14[:7]
+
+        # Calculate sums
+        long_curr = sum(r[1] for r in current_week)
+        long_prev = sum(r[1] for r in prev_week)
+        short_curr = sum(r[2] for r in current_week)
+        short_prev = sum(r[2] for r in prev_week)
+
+        return {
+            "long_7d": long_curr,
+            "long_change_7d": long_curr - long_prev,
+            "short_7d": short_curr,
+            "short_change_7d": short_curr - short_prev
+        }
+
+    except Exception:
+        return None
+
+
+def normalize_long_liquidations_7d(data: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+    """
+    Wrapper for weekly_06: Long Liquidations 7d
+
+    Calls base normalizer and extracts long liquidation data.
+
+    Returns:
+        {"value": 500.0, "change_7d": 50.0}  (in millions USD)
+        None if error
+    """
+    base = _normalize_liquidations_7d_base(data)
+    if base is None:
+        return None
+
+    # Convert to millions for readability
+    return {
+        "value": round(base["long_7d"] / 1e6, 2),
+        "change_7d": round(base["long_change_7d"] / 1e6, 2)
+    }
+
+
+def normalize_short_liquidations_7d(data: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+    """
+    Wrapper for weekly_07: Short Liquidations 7d
+
+    Calls base normalizer and extracts short liquidation data.
+
+    Returns:
+        {"value": 100.0, "change_7d": 10.0}  (in millions USD)
+        None if error
+    """
+    base = _normalize_liquidations_7d_base(data)
+    if base is None:
+        return None
+
+    # Convert to millions for readability
+    return {
+        "value": round(base["short_7d"] / 1e6, 2),
+        "change_7d": round(base["short_change_7d"] / 1e6, 2)
+    }
+
+
 # Helper function for unwrapping CoinGlass API response
 def _unwrap_coinglass_data(payload):
     """
