@@ -129,7 +129,8 @@ class MetricOrchestrator:
             'normalize_short_liquidations_7d': normalizer.normalize_short_liquidations_7d,
             'normalize_oi_trend_7d': normalizer.normalize_oi_trend_7d,
             'normalize_major_exchange_volume_7d': normalizer.normalize_major_exchange_volume_7d,
-            'normalize_perp_volume_change_7d': normalizer.normalize_perp_volume_change_7d
+            'normalize_perp_volume_change_7d': normalizer.normalize_perp_volume_change_7d,
+            'normalize_usdt_premium_7d': normalizer.normalize_usdt_premium_7d
         }
     
     def fetch_and_normalize(self, metric: MetricDefinition) -> MetricResult:

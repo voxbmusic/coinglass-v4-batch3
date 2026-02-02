@@ -457,17 +457,23 @@ WEEKLY_METRICS: List[MetricDefinition] = [
         implementation_notes="Startup plan limitation: uses aggregated taker buy/sell volume as proxy for perp volume. Returns {value, change_7d} where change_7d is PERCENT."
     ),
     
-    # weekly_15 - USDT Premium (7d)
-    create_registry_metric(
-        registry_id="weekly_15_usdt_premium",
+    # weekly_15 - USDT Premium (7d) (IMPLEMENTED)
+    MetricDefinition(
+        id="weekly_15_usdt_premium",
         name="USDT Premium (7d)",
         timeframe="7d",
         category="premium",
-        data_source=DataSource.EXTERNAL,
-        min_plan=PlanTier.STANDARD,
+        endpoint="/api/spot/price/history",
+        params={"exchange": "Binance", "symbol": "USDCUSDT", "interval": "1d", "limit": "14"},
+        api_confidence=APIConfidence.CONFIRMED,
+        default_status=MetricStatus.OK,
+        data_source=DataSource.COINGLASS,
+        min_plan=PlanTier.STARTUP,
+        implemented=True,
+        normalizer="normalize_usdt_premium_7d",
         unit="percent",
-        description="7-day average USDT premium/discount",
-        implementation_notes="Stablecoin peg deviation"
+        description="USDT Premium (7d) via USDCUSDT peg proxy",
+        implementation_notes="Startup plan limitation: spot USDCUSDT on Binance used as proxy for USDT premium/discount. premium_pct=(close-1)*100"
     ),
     
     # weekly_16 - Fear & Greed Index (IMPLEMENTED)

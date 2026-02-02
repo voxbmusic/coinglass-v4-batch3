@@ -1630,6 +1630,86 @@ def normalize_perp_volume_change_7d(data: Dict[str, Any]) -> Optional[Dict[str, 
     }
 
 
+# ============================================================================
+# NORMALIZER 21: USDT Premium 7d (weekly_15)
+# ============================================================================
+
+def normalize_usdt_premium_7d(data: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+    """
+    Normalize USDT Premium (7d) via USDCUSDT spot price proxy
+
+    Metric: weekly_15_usdt_premium
+    Endpoint: /api/spot/price/history
+    Params: exchange=Binance, symbol=USDCUSDT, interval=1d, limit=14
+
+    V4 Response Format (VERIFIED via runtime POC):
+        {"code": "0", "data": [
+            {"time": 1768867200000, "open": "1.0005", "high": "1.0011",
+             "low": "1.0004", "close": "1.001", "volume_usd": "..."},
+            ...
+        ]}
+
+    CRITICAL: data is ASC (oldest first, newest last).
+    Premium calculation: premium_pct = (close - 1.0) * 100
+    - USDCUSDT > 1.0 means USDT is at discount (weak)
+    - USDCUSDT < 1.0 means USDT is at premium (strong)
+
+    Returns:
+        {"value": 0.07, "change_7d": -0.01}  (both in percent)
+        None if error or insufficient data
+    """
+    try:
+        # Check success code
+        code = str(data.get("code", ""))
+        if code not in ("0", "00", "success"):
+            return None
+
+        # Extract data list
+        data_list = data.get("data", [])
+        if not data_list or len(data_list) < 14:
+            return None
+
+        # Build valid (time, close) pairs
+        rows = []
+        for row in data_list:
+            ts = row.get("time")
+            close = row.get("close")
+            if ts is None or close is None:
+                continue
+            try:
+                rows.append((int(ts), float(close)))
+            except (ValueError, TypeError):
+                continue
+
+        if len(rows) < 14:
+            return None
+
+        # Sort by timestamp ascending
+        rows_sorted = sorted(rows, key=lambda x: x[0])
+
+        # Take last 14 days
+        last_14 = rows_sorted[-14:]
+
+        # Calculate premium for each day: (close - 1.0) * 100
+        premiums = [(close - 1.0) * 100 for _, close in last_14]
+
+        # prev7_last = index 6 (7th day, end of prev week)
+        # curr7_last = index 13 (last day, end of current week)
+        prev7_last = premiums[6]
+        curr7_last = premiums[-1]
+
+        value = round(curr7_last, 2)
+        change_7d = round(curr7_last - prev7_last, 2)
+
+        return {
+            "value": value,
+            "change_7d": change_7d
+        }
+
+    except Exception:
+        return None
+
+
 # Helper function for unwrapping CoinGlass API response
 def _unwrap_coinglass_data(payload):
     """
