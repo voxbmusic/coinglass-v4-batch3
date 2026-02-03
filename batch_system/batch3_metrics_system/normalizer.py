@@ -1710,6 +1710,91 @@ def normalize_usdt_premium_7d(data: Dict[str, Any]) -> Optional[Dict[str, Any]]:
         return None
 
 
+# ============================================================================
+# NORMALIZER: Active Addresses 7d (weekly_10)
+# ============================================================================
+
+def normalize_active_addresses_7d(data: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+    """
+    Normalize Bitcoin active addresses for 7-day average with change
+
+    Metric: weekly_10_active_addresses
+    Endpoint: /api/index/bitcoin-active-addresses
+
+    NOTE: CoinGlass API ignores limit param and returns FULL HISTORY (5000+ rows).
+    Normalizer slices last 14 days and computes 7d/7d averages.
+
+    V4 Response Format:
+        {"code": "0", "data": [
+            {"timestamp": 1609459200, "active_address_count": 1234567, "price": 29000},
+            ...
+        ]}
+
+    Algorithm:
+        1. Sort by timestamp ASC
+        2. Take last 14 entries
+        3. Split: prev7 ([:7]), curr7 ([7:])
+        4. Calculate averages
+        5. Return value in thousands (k), change as absolute delta in k
+
+    Returns:
+        {"value": <curr7_avg_k>, "change_7d": <delta_k>} or None
+    """
+    try:
+        # Validate response
+        if not isinstance(data, dict):
+            return None
+        if str(data.get("code")) != "0":
+            return None
+
+        data_list = data.get("data")
+        if not isinstance(data_list, list) or len(data_list) < 14:
+            return None
+
+        # Build (timestamp, active_address_count) tuples
+        entries = []
+        for item in data_list:
+            if not isinstance(item, dict):
+                continue
+            ts = item.get("timestamp")
+            count = item.get("active_address_count")
+            if ts is None or count is None:
+                continue
+            try:
+                ts_val = int(ts)
+                count_val = float(count)
+                entries.append((ts_val, count_val))
+            except (ValueError, TypeError):
+                continue
+
+        if len(entries) < 14:
+            return None
+
+        # Sort by timestamp ASC and take last 14
+        entries.sort(key=lambda x: x[0])
+        last14 = entries[-14:]
+
+        # Split into prev7 and curr7
+        prev7 = last14[:7]
+        curr7 = last14[7:]
+
+        # Calculate averages
+        prev7_avg = sum(e[1] for e in prev7) / len(prev7)
+        curr7_avg = sum(e[1] for e in curr7) / len(curr7)
+
+        # Convert to thousands (k) with 2 decimals
+        value_k = round(curr7_avg / 1000, 2)
+        change_k = round((curr7_avg - prev7_avg) / 1000, 2)
+
+        return {
+            "value": value_k,
+            "change_7d": change_k
+        }
+
+    except Exception:
+        return None
+
+
 # Helper function for unwrapping CoinGlass API response
 def _unwrap_coinglass_data(payload):
     """

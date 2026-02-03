@@ -364,17 +364,23 @@ WEEKLY_METRICS: List[MetricDefinition] = [
         implementation_notes="Requires on-chain data"
     ),
     
-    # weekly_10 - Active Addresses (7d)
-    create_registry_metric(
-        registry_id="weekly_10_active_addresses",
+    # weekly_10 - Active Addresses (7d) (IMPLEMENTED)
+    MetricDefinition(
+        id="weekly_10_active_addresses",
         name="Active Addresses (7d)",
         timeframe="7d",
         category="open_interest",
+        endpoint="/api/index/bitcoin-active-addresses",
+        params={},
+        api_confidence=APIConfidence.CONFIRMED,
+        default_status=MetricStatus.OK,
         data_source=DataSource.COINGLASS,
         min_plan=PlanTier.STARTUP,
-        unit="count",
-        description="7-day average active addresses",
-        implementation_notes="CoinGlass /api/index/bitcoin-active-addresses"
+        implemented=True,
+        normalizer="normalize_active_addresses_7d",
+        unit="thousand_addresses",
+        description="7-day avg active addresses (k); change is absolute vs prior 7d (k)",
+        implementation_notes="CoinGlass returns full history; API ignores limit param. Normalizer slices last14 and computes 7d/7d averages."
     ),
     
     # weekly_11 - BTC Dominance Change (IMPLEMENTED)
