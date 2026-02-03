@@ -495,17 +495,17 @@ WEEKLY_METRICS: List[MetricDefinition] = [
         implementation_notes="CoinGlass /api/index/fear-greed-history; returns {value, label, change_7d}"
     ),
     
-    # weekly_17 - Options Put/Call Ratio
+    # weekly_17 - Options Put/Call Ratio (EXTERNAL_REQUIRED)
     create_registry_metric(
         registry_id="weekly_17_options_put_call_ratio",
         name="Options Put/Call Ratio",
         timeframe="7d",
         category="open_interest",
-        data_source=DataSource.COINGLASS,
+        data_source=DataSource.EXTERNAL,
         min_plan=PlanTier.STARTUP,
         unit="ratio",
         description="Options positioning indicator",
-        implementation_notes="CoinGlass /api/option/max-pain -> put_oi/call_oi derived"
+        implementation_notes="EXTERNAL_REQUIRED: CoinGlass options endpoints (/api/option/info, /api/option/exchange-oi-history, /api/option/exchange-vol-history) do not expose put/call split under Startup plan. Requires external source: Deribit API, Laevitas, Amberdata, or similar options data provider."
     ),
     
     # weekly_18 - Market Cap Rank Changes
