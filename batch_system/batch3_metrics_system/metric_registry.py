@@ -641,17 +641,23 @@ MONTHLY_METRICS: List[MetricDefinition] = [
         implementation_notes="Requires on-chain data"
     ),
     
-    # monthly_09 - Stablecoin Market Cap
-    create_registry_metric(
-        registry_id="monthly_09_stablecoin_market_cap",
+    # monthly_09 - Stablecoin Market Cap (IMPLEMENTED)
+    MetricDefinition(
+        id="monthly_09_stablecoin_market_cap",
         name="Stablecoin Market Cap",
         timeframe="30d",
         category="open_interest",
-        data_source=DataSource.EXTERNAL,
+        endpoint="/api/index/stableCoin-marketCap-history",
+        params={},
+        api_confidence=APIConfidence.CONFIRMED,
+        default_status=MetricStatus.OK,
+        data_source=DataSource.COINGLASS,
         min_plan=PlanTier.STARTUP,
+        implemented=True,
+        normalizer="normalize_stablecoin_market_cap",
         unit="billion_usd",
         description="Total stablecoin supply (sideline capital)",
-        implementation_notes="Aggregate USDT+USDC+DAI etc"
+        implementation_notes="CoinGlass /api/index/stableCoin-marketCap-history; sum USDT+USDC+DAI+BUSD+TUSD+FDUSD+USDE"
     ),
     
     # monthly_10 - Futures OI Growth
