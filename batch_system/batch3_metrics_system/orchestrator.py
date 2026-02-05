@@ -134,7 +134,8 @@ class MetricOrchestrator:
             'normalize_active_addresses_7d': normalizer.normalize_active_addresses_7d,
             # Monthly normalizers
             'normalize_stablecoin_market_cap': normalizer.normalize_stablecoin_market_cap,
-            'normalize_futures_oi_growth_30d': normalizer.normalize_futures_oi_growth_30d
+            'normalize_futures_oi_growth_30d': normalizer.normalize_futures_oi_growth_30d,
+            'normalize_volatility_30d': normalizer.normalize_volatility_30d
         }
     
     def fetch_and_normalize(self, metric: MetricDefinition) -> MetricResult:

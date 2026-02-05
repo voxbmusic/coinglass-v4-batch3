@@ -537,19 +537,25 @@ WEEKLY_METRICS: List[MetricDefinition] = [
 # New monthly metrics must be added to the END with monthly_16, monthly_17, etc.
 
 MONTHLY_METRICS: List[MetricDefinition] = [
-    # monthly_01 - Volatility (30d)
-    create_registry_metric(
-        registry_id="monthly_01_volatility",
+    
+    # monthly_01 - Volatility (30d) (IMPLEMENTED)
+    MetricDefinition(
+        id="monthly_01_volatility",
         name="Volatility (30d)",
         timeframe="30d",
         category="open_interest",
-        data_source=DataSource.COMPUTED,
+        endpoint="/api/spot/price/history",
+        params={"exchange": "Binance", "symbol": "BTCUSDT", "interval": "1d", "limit": "35"},
+        api_confidence=APIConfidence.CONFIRMED,
+        default_status=MetricStatus.OK,
+        data_source=DataSource.COINGLASS,
         min_plan=PlanTier.STARTUP,
+        implemented=True,
+        normalizer="normalize_volatility_30d",
         unit="percent",
-        description="30-day historical volatility",
-        implementation_notes="Standard deviation of returns"
+        description="30-day realized volatility from BTC spot daily closes",
+        implementation_notes="Uses /api/spot/price/history (Binance BTCUSDT 1d). Vol=stdev(log returns) annualized with sqrt(365)."
     ),
-    
     # monthly_02 - MVRV Ratio
     create_registry_metric(
         registry_id="monthly_02_mvrv_ratio",

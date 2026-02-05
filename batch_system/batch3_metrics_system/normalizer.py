@@ -1964,6 +1964,76 @@ def normalize_futures_oi_growth_30d(data: Dict[str, Any]) -> Optional[Dict[str, 
     except Exception:
         return None
 
+# ============================================================================
+# NORMALIZER: Volatility (30d) — monthly_01
+# ============================================================================
+def normalize_volatility_30d(data):
+    """
+    Normalize 30-day volatility from spot BTC daily candles.
+
+    Metric: monthly_01_volatility
+    Endpoint: /api/spot/price/history
+    Params (expected): exchange=Binance, symbol=BTCUSDT, interval=1d, limit=35
+
+    Returns:
+        {
+          "daily_vol_pct": float,
+          "annualized_vol_pct": float,
+          "price_change_30d_pct": float,
+          "ts": int,
+          "ts_date": str
+        }
+        or None
+    """
+    try:
+        import math, statistics
+        from datetime import datetime, timezone
+
+        if not isinstance(data, dict):
+            return None
+
+        inner = data.get("data", data)
+        if not isinstance(inner, list) or len(inner) < 31:
+            return None
+
+        window = inner[-31:]  # last 31 closes -> 30 returns
+        closes = []
+        times = []
+        for c in window:
+            if not isinstance(c, dict):
+                return None
+            close = c.get("close")
+            t = c.get("time")
+            if close is None or t is None:
+                return None
+            closes.append(float(close))
+            ts = int(t)
+            ts = ts // 1000 if ts > 10**12 else ts
+            times.append(ts)
+
+        if len(closes) < 31 or closes[0] == 0:
+            return None
+
+        rets = [math.log(closes[i] / closes[i-1]) for i in range(1, len(closes))]
+        stdev = statistics.pstdev(rets)
+        annual = stdev * math.sqrt(365)
+
+        price_change_30d_pct = ((closes[-1] - closes[0]) / closes[0]) * 100.0
+
+        ts_sec = times[-1]
+        ts_date = datetime.fromtimestamp(ts_sec, tz=timezone.utc).strftime("%Y-%m-%d")
+
+        return {
+            "daily_vol_pct": round(stdev * 100, 4),
+            "annualized_vol_pct": round(annual * 100, 2),
+            "price_change_30d_pct": round(price_change_30d_pct, 2),
+            "ts": ts_sec,
+            "ts_date": ts_date
+        }
+
+    except Exception:
+        return None
+
 # Helper function for unwrapping CoinGlass API response
 def _unwrap_coinglass_data(payload):
     """
