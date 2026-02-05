@@ -131,7 +131,9 @@ class MetricOrchestrator:
             'normalize_major_exchange_volume_7d': normalizer.normalize_major_exchange_volume_7d,
             'normalize_perp_volume_change_7d': normalizer.normalize_perp_volume_change_7d,
             'normalize_usdt_premium_7d': normalizer.normalize_usdt_premium_7d,
-            'normalize_active_addresses_7d': normalizer.normalize_active_addresses_7d
+            'normalize_active_addresses_7d': normalizer.normalize_active_addresses_7d,
+            # Monthly normalizers
+            'normalize_stablecoin_market_cap': normalizer.normalize_stablecoin_market_cap
         }
     
     def fetch_and_normalize(self, metric: MetricDefinition) -> MetricResult:

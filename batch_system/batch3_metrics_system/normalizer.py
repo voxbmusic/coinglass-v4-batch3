@@ -1795,6 +1795,113 @@ def normalize_active_addresses_7d(data: Dict[str, Any]) -> Optional[Dict[str, An
         return None
 
 
+# ============================================================================
+# NORMALIZER: Stablecoin Market Cap (monthly_09)
+# ============================================================================
+
+# Known stablecoins to aggregate
+_KNOWN_STABLECOINS = {"USDT", "USDC", "DAI", "BUSD", "TUSD", "FDUSD", "USDE", "FRAX", "USDP", "GUSD"}
+
+def normalize_stablecoin_market_cap(data: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+    """
+    Normalize stablecoin market cap data
+
+    Metric: monthly_09_stablecoin_market_cap
+    Endpoint: /api/index/stableCoin-marketCap-history
+    Params: none
+
+    Response Format:
+        {"code": "0", "data": {
+            "time_list": [1706000000000, ...],  # ms timestamps
+            "price_list": ["42000", ...],       # BTC price (unused)
+            "data_list": [{"USDT": 1.2e11, "USDC": 3.5e10, ...}, ...]
+        }}
+
+    Algorithm:
+        1. Get latest data_list entry
+        2. Sum known stablecoins for total market cap
+        3. Get 30d ago entry for change calculation
+        4. Convert to billions (input is raw USD)
+        5. Extract latest timestamp and convert to ISO date
+
+    Returns:
+        {"value_b": float, "change_30d_b": float, "ts": int, "ts_date": str}
+        or None on error
+    """
+    try:
+        if not isinstance(data, dict):
+            return None
+
+        # Handle wrapped response
+        inner = data.get("data", data)
+        if not isinstance(inner, dict):
+            return None
+
+        time_list = inner.get("time_list")
+        data_list = inner.get("data_list")
+
+        if not time_list or not data_list:
+            return None
+        if len(time_list) < 1 or len(data_list) < 1:
+            return None
+
+        # Get latest entry
+        latest_idx = len(data_list) - 1
+        latest_entry = data_list[latest_idx]
+
+        if not isinstance(latest_entry, dict):
+            return None
+
+        # Sum all stablecoins (known + unknown) for total market cap
+        total_latest = 0.0
+        for coin, value in latest_entry.items():
+            try:
+                total_latest += float(value)
+            except (ValueError, TypeError):
+                continue
+
+        if total_latest <= 0:
+            return None
+
+        # Calculate 30d change if we have enough data
+        change_30d = 0.0
+        if len(data_list) >= 31:
+            idx_30d_ago = latest_idx - 30
+            entry_30d_ago = data_list[idx_30d_ago]
+            if isinstance(entry_30d_ago, dict):
+                total_30d_ago = 0.0
+                for coin, value in entry_30d_ago.items():
+                    try:
+                        total_30d_ago += float(value)
+                    except (ValueError, TypeError):
+                        continue
+                if total_30d_ago > 0:
+                    change_30d = total_latest - total_30d_ago
+
+        # Convert to billions
+        value_b = round(total_latest / 1e9, 2)
+        change_30d_b = round(change_30d / 1e9, 2)
+
+        # Get timestamp (convert ms to seconds)
+        latest_ts_ms = time_list[latest_idx]
+        ts_sec = int(latest_ts_ms) // 1000 if latest_ts_ms > 1e12 else int(latest_ts_ms)
+
+        # Convert to ISO date
+        from datetime import datetime, timezone
+        dt = datetime.fromtimestamp(ts_sec, tz=timezone.utc)
+        ts_date = dt.strftime("%Y-%m-%d")
+
+        return {
+            "value_b": value_b,
+            "change_30d_b": change_30d_b,
+            "ts": ts_sec,
+            "ts_date": ts_date
+        }
+
+    except Exception:
+        return None
+
+
 # Helper function for unwrapping CoinGlass API response
 def _unwrap_coinglass_data(payload):
     """
