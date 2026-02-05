@@ -660,19 +660,25 @@ MONTHLY_METRICS: List[MetricDefinition] = [
         implementation_notes="CoinGlass /api/index/stableCoin-marketCap-history; sum USDT+USDC+DAI+BUSD+TUSD+FDUSD+USDE"
     ),
     
-    # monthly_10 - Futures OI Growth
-    create_registry_metric(
-        registry_id="monthly_10_futures_oi_growth",
+    
+    # monthly_10 - Futures OI Growth (IMPLEMENTED)
+    MetricDefinition(
+        id="monthly_10_futures_oi_growth",
         name="Futures OI Growth",
         timeframe="30d",
         category="open_interest",
+        endpoint="/api/futures/open-interest/aggregated-history",
+        params={"interval": "1d", "limit": "35", "symbol": "BTC"},
+        api_confidence=APIConfidence.CONFIRMED,
+        default_status=MetricStatus.OK,
         data_source=DataSource.COINGLASS,
         min_plan=PlanTier.STARTUP,
+        implemented=True,
+        normalizer="normalize_futures_oi_growth_30d",
         unit="percent",
-        description="30-day derivatives market growth",
-        implementation_notes="OI change over 30 days"
+        description="30-day derivatives market growth (BTC aggregated OI)",
+        implementation_notes="Compute % change: last_close vs close_30d_ago from /api/futures/open-interest/aggregated-history interval=1d"
     ),
-    
     # monthly_11 - Options OI Growth
     create_registry_metric(
         registry_id="monthly_11_options_oi_growth",

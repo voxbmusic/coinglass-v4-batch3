@@ -162,27 +162,38 @@ def main():
     print("=" * 70)
 
     # ========================================================================
-    # MONTHLY POC: Single metric test (monthly_09_stablecoin_market_cap)
+    # MONTHLY POC: Two-metric smoke (monthly_09, monthly_10)
     # ========================================================================
     monthly_metrics = PANEL_REGISTRY.get("monthly", [])
-    monthly_09 = None
-    for m in monthly_metrics:
-        if m.id == "monthly_09_stablecoin_market_cap":
-            monthly_09 = m
-            break
+    want_ids = ["monthly_09_stablecoin_market_cap", "monthly_10_futures_oi_growth"]
+    want = {mid: None for mid in want_ids}
 
-    if monthly_09 and monthly_09.implemented:
-        result = orchestrator.fetch_and_normalize(monthly_09)
-        if result.status == MetricStatus.OK and isinstance(result.value, dict):
-            val = result.value.get("value_b", 0)
-            chg = result.value.get("change_30d_b", 0)
-            dt = result.value.get("ts_date", "")
-            sign = "+" if chg >= 0 else ""
-            print(f"\nMONTHLY (POC): ✅ Stablecoin Market Cap: {val}B (30d: {sign}{chg}B) | {dt}")
+    for m in monthly_metrics:
+        if m.id in want:
+            want[m.id] = m
+
+    def _print_monthly_line(label, ok_fmt, metric):
+        if metric and getattr(metric, "implemented", False):
+            r = orchestrator.fetch_and_normalize(metric)
+            if r.status == MetricStatus.OK and isinstance(r.value, dict):
+                print(ok_fmt(r.value))
+            else:
+                print(f"\nMONTHLY (POC): ❌ {label}: N/A [{r.status.value}]")
         else:
-            print(f"\nMONTHLY (POC): ❌ Stablecoin Market Cap: N/A [{result.status.value}]")
-    else:
-        print("\nMONTHLY (POC): 🔗 Stablecoin Market Cap: N/A [NOT_IMPLEMENTED]")
+            print(f"\nMONTHLY (POC): 🔗 {label}: N/A [NOT_IMPLEMENTED]")
+
+    _print_monthly_line(
+        "Stablecoin Market Cap",
+        lambda v: f"\nMONTHLY (POC): ✅ Stablecoin Market Cap: {v.get('value_b')}B (30d: {('+' if v.get('change_30d_b',0)>=0 else '')}{v.get('change_30d_b')}B) | {v.get('ts_date','')}",
+        want.get("monthly_09_stablecoin_market_cap"),
+    )
+
+    _print_monthly_line(
+        "Futures OI Growth",
+        lambda v: f"\nMONTHLY (POC): ✅ Futures OI Growth: {v.get('value_b')}B (30d: {('+' if v.get('change_30d_b',0)>=0 else '')}{v.get('change_30d_b')}B, {('+' if v.get('change_30d_pct',0)>=0 else '')}{v.get('change_30d_pct')}%) | {v.get('ts_date','')}",
+        want.get("monthly_10_futures_oi_growth"),
+    )
+
 
 if __name__ == "__main__":
     main()

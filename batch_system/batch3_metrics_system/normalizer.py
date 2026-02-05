@@ -1901,6 +1901,68 @@ def normalize_stablecoin_market_cap(data: Dict[str, Any]) -> Optional[Dict[str, 
     except Exception:
         return None
 
+# ============================================================================
+# NORMALIZER: Futures OI Growth (monthly_10)
+# ============================================================================
+def normalize_futures_oi_growth_30d(data: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+    """
+    Normalize Futures Open Interest 30d growth.
+
+    Metric: monthly_10_futures_oi_growth
+    Endpoint: /api/futures/open-interest/aggregated-history
+    Params: interval=1d, limit=35, symbol=BTC
+
+    Response (typical): {"code":"0","data":[{"time":...,"close":...}, ...]}
+
+    Returns:
+        {
+          "value_b": float,          # latest close in billions
+          "change_30d_b": float,     # absolute change in billions
+          "change_30d_pct": float,   # percent change over 30d
+          "ts": int,                 # epoch seconds (latest)
+          "ts_date": str             # YYYY-MM-DD (UTC)
+        }
+        or None
+    """
+    try:
+        if not isinstance(data, dict):
+            return None
+
+        inner = data.get("data", data)
+        if not isinstance(inner, list) or len(inner) < 31:
+            return None
+
+        # last item is latest
+        last = inner[-1]
+        prev30 = inner[-31]
+
+        if not isinstance(last, dict) or not isinstance(prev30, dict):
+            return None
+
+        last_close = float(last.get("close"))
+        prev_close = float(prev30.get("close"))
+        if prev_close == 0:
+            return None
+
+        change_abs = last_close - prev_close
+        change_pct = (change_abs / prev_close) * 100.0
+
+        # timestamps are ms in this endpoint
+        ts_ms = int(last.get("time"))
+        ts_sec = ts_ms // 1000 if ts_ms > 10**12 else ts_ms
+
+        from datetime import datetime, timezone
+        ts_date = datetime.fromtimestamp(ts_sec, tz=timezone.utc).strftime("%Y-%m-%d")
+
+        return {
+            "value_b": round(last_close / 1e9, 2),
+            "change_30d_b": round(change_abs / 1e9, 2),
+            "change_30d_pct": round(change_pct, 2),
+            "ts": ts_sec,
+            "ts_date": ts_date
+        }
+    except Exception:
+        return None
 
 # Helper function for unwrapping CoinGlass API response
 def _unwrap_coinglass_data(payload):
