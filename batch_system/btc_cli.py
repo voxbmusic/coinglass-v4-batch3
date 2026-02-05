@@ -161,5 +161,28 @@ def main():
     print(f"  ✅ OK: {weekly_ok} | ❌ MISSING: {weekly_missing} | 🔗 EXTERNAL: {weekly_external} | 🔒 LOCKED: {weekly_locked}")
     print("=" * 70)
 
+    # ========================================================================
+    # MONTHLY POC: Single metric test (monthly_09_stablecoin_market_cap)
+    # ========================================================================
+    monthly_metrics = PANEL_REGISTRY.get("monthly", [])
+    monthly_09 = None
+    for m in monthly_metrics:
+        if m.id == "monthly_09_stablecoin_market_cap":
+            monthly_09 = m
+            break
+
+    if monthly_09 and monthly_09.implemented:
+        result = orchestrator.fetch_and_normalize(monthly_09)
+        if result.status == MetricStatus.OK and isinstance(result.value, dict):
+            val = result.value.get("value_b", 0)
+            chg = result.value.get("change_30d_b", 0)
+            dt = result.value.get("ts_date", "")
+            sign = "+" if chg >= 0 else ""
+            print(f"\nMONTHLY (POC): ✅ Stablecoin Market Cap: {val}B (30d: {sign}{chg}B) | {dt}")
+        else:
+            print(f"\nMONTHLY (POC): ❌ Stablecoin Market Cap: N/A [{result.status.value}]")
+    else:
+        print("\nMONTHLY (POC): 🔗 Stablecoin Market Cap: N/A [NOT_IMPLEMENTED]")
+
 if __name__ == "__main__":
     main()
