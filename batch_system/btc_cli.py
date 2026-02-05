@@ -165,7 +165,7 @@ def main():
     # MONTHLY POC: Two-metric smoke (monthly_09, monthly_10)
     # ========================================================================
     monthly_metrics = PANEL_REGISTRY.get("monthly", [])
-    want_ids = ["monthly_09_stablecoin_market_cap", "monthly_10_futures_oi_growth"]
+    want_ids = ["monthly_09_stablecoin_market_cap", "monthly_10_futures_oi_growth", "monthly_01_volatility", "monthly_12_etf_holdings"]
     want = {mid: None for mid in want_ids}
 
     for m in monthly_metrics:
@@ -192,6 +192,18 @@ def main():
         "Futures OI Growth",
         lambda v: f"\nMONTHLY (POC): ✅ Futures OI Growth: {v.get('value_b')}B (30d: {('+' if v.get('change_30d_b',0)>=0 else '')}{v.get('change_30d_b')}B, {('+' if v.get('change_30d_pct',0)>=0 else '')}{v.get('change_30d_pct')}%) | {v.get('ts_date','')}",
         want.get("monthly_10_futures_oi_growth"),
+    )
+
+    _print_monthly_line(
+        "Volatility (30d)",
+        lambda v: f"\nMONTHLY (POC): ✅ Volatility (30d): {v.get('annualized_vol_pct')}% ann (daily: {v.get('daily_vol_pct')}%), price_30d: {('+' if v.get('price_change_30d_pct',0)>=0 else '')}{v.get('price_change_30d_pct')}% | {v.get('ts_date','')}",
+        want.get("monthly_01_volatility"),
+    )
+
+    _print_monthly_line(
+        "ETF Holdings",
+        lambda v: f"\nMONTHLY (POC): ✅ ETF Holdings: {v.get('total_btc')} BTC (funds: {v.get('fund_count')}) | {v.get('ts_date','')}",
+        want.get("monthly_12_etf_holdings"),
     )
 
 
