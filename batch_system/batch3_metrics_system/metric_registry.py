@@ -537,19 +537,25 @@ WEEKLY_METRICS: List[MetricDefinition] = [
 # New monthly metrics must be added to the END with monthly_16, monthly_17, etc.
 
 MONTHLY_METRICS: List[MetricDefinition] = [
-    # monthly_01 - Volatility (30d)
-    create_registry_metric(
-        registry_id="monthly_01_volatility",
+    
+    # monthly_01 - Volatility (30d) (IMPLEMENTED)
+    MetricDefinition(
+        id="monthly_01_volatility",
         name="Volatility (30d)",
         timeframe="30d",
         category="open_interest",
-        data_source=DataSource.COMPUTED,
+        endpoint="/api/spot/price/history",
+        params={"exchange": "Binance", "symbol": "BTCUSDT", "interval": "1d", "limit": "35"},
+        api_confidence=APIConfidence.CONFIRMED,
+        default_status=MetricStatus.OK,
+        data_source=DataSource.COINGLASS,
         min_plan=PlanTier.STARTUP,
+        implemented=True,
+        normalizer="normalize_volatility_30d",
         unit="percent",
-        description="30-day historical volatility",
-        implementation_notes="Standard deviation of returns"
+        description="30-day realized volatility from BTC spot daily closes",
+        implementation_notes="Uses /api/spot/price/history (Binance BTCUSDT 1d). Vol=stdev(log returns) annualized with sqrt(365)."
     ),
-    
     # monthly_02 - MVRV Ratio
     create_registry_metric(
         registry_id="monthly_02_mvrv_ratio",
@@ -660,19 +666,25 @@ MONTHLY_METRICS: List[MetricDefinition] = [
         implementation_notes="CoinGlass /api/index/stableCoin-marketCap-history; sum USDT+USDC+DAI+BUSD+TUSD+FDUSD+USDE"
     ),
     
-    # monthly_10 - Futures OI Growth
-    create_registry_metric(
-        registry_id="monthly_10_futures_oi_growth",
+    
+    # monthly_10 - Futures OI Growth (IMPLEMENTED)
+    MetricDefinition(
+        id="monthly_10_futures_oi_growth",
         name="Futures OI Growth",
         timeframe="30d",
         category="open_interest",
+        endpoint="/api/futures/open-interest/aggregated-history",
+        params={"interval": "1d", "limit": "35", "symbol": "BTC"},
+        api_confidence=APIConfidence.CONFIRMED,
+        default_status=MetricStatus.OK,
         data_source=DataSource.COINGLASS,
         min_plan=PlanTier.STARTUP,
+        implemented=True,
+        normalizer="normalize_futures_oi_growth_30d",
         unit="percent",
-        description="30-day derivatives market growth",
-        implementation_notes="OI change over 30 days"
+        description="30-day derivatives market growth (BTC aggregated OI)",
+        implementation_notes="Compute % change: last_close vs close_30d_ago from /api/futures/open-interest/aggregated-history interval=1d"
     ),
-    
     # monthly_11 - Options OI Growth
     create_registry_metric(
         registry_id="monthly_11_options_oi_growth",
@@ -686,17 +698,23 @@ MONTHLY_METRICS: List[MetricDefinition] = [
         implementation_notes="Deribit options data"
     ),
     
-    # monthly_12 - ETF Holdings
-    create_registry_metric(
-        registry_id="monthly_12_etf_holdings",
+    # monthly_12 - ETF Holdings (IMPLEMENTED)
+    MetricDefinition(
+        id="monthly_12_etf_holdings",
         name="ETF Holdings",
         timeframe="30d",
         category="open_interest",
-        data_source=DataSource.EXTERNAL,
+        endpoint="/api/etf/bitcoin/list",
+        params={},
+        api_confidence=APIConfidence.CONFIRMED,
+        default_status=MetricStatus.OK,
+        data_source=DataSource.COINGLASS,
         min_plan=PlanTier.STARTUP,
+        implemented=True,
+        normalizer="normalize_etf_bitcoin_holdings_total",
         unit="btc",
-        description="Total Bitcoin held in ETFs",
-        implementation_notes="Aggregate spot ETF holdings"
+        description="Total BTC held by spot Bitcoin ETFs (sum of holding_quantity)",
+        implementation_notes="CoinGlass /api/etf/bitcoin/list; sum asset_details.holding_quantity; filter fund_type=Spot region=us"
     ),
     
     # monthly_13 - Grayscale/Institutional

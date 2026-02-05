@@ -1901,6 +1901,260 @@ def normalize_stablecoin_market_cap(data: Dict[str, Any]) -> Optional[Dict[str, 
     except Exception:
         return None
 
+# ============================================================================
+# NORMALIZER: Futures OI Growth (monthly_10)
+# ============================================================================
+def normalize_futures_oi_growth_30d(data: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+    """
+    Normalize Futures Open Interest 30d growth.
+
+    Metric: monthly_10_futures_oi_growth
+    Endpoint: /api/futures/open-interest/aggregated-history
+    Params: interval=1d, limit=35, symbol=BTC
+
+    Response (typical): {"code":"0","data":[{"time":...,"close":...}, ...]}
+
+    Returns:
+        {
+          "value_b": float,          # latest close in billions
+          "change_30d_b": float,     # absolute change in billions
+          "change_30d_pct": float,   # percent change over 30d
+          "ts": int,                 # epoch seconds (latest)
+          "ts_date": str             # YYYY-MM-DD (UTC)
+        }
+        or None
+    """
+    try:
+        if not isinstance(data, dict):
+            return None
+
+        inner = data.get("data", data)
+        if not isinstance(inner, list) or len(inner) < 31:
+            return None
+
+        # last item is latest
+        last = inner[-1]
+        prev30 = inner[-31]
+
+        if not isinstance(last, dict) or not isinstance(prev30, dict):
+            return None
+
+        last_close = float(last.get("close"))
+        prev_close = float(prev30.get("close"))
+        if prev_close == 0:
+            return None
+
+        change_abs = last_close - prev_close
+        change_pct = (change_abs / prev_close) * 100.0
+
+        # timestamps are ms in this endpoint
+        ts_ms = int(last.get("time"))
+        ts_sec = ts_ms // 1000 if ts_ms > 10**12 else ts_ms
+
+        from datetime import datetime, timezone
+        ts_date = datetime.fromtimestamp(ts_sec, tz=timezone.utc).strftime("%Y-%m-%d")
+
+        return {
+            "value_b": round(last_close / 1e9, 2),
+            "change_30d_b": round(change_abs / 1e9, 2),
+            "change_30d_pct": round(change_pct, 2),
+            "ts": ts_sec,
+            "ts_date": ts_date
+        }
+    except Exception:
+        return None
+
+# ============================================================================
+# NORMALIZER: Volatility (30d) — monthly_01
+# ============================================================================
+def normalize_volatility_30d(data):
+    """
+    Normalize 30-day volatility from spot BTC daily candles.
+
+    Metric: monthly_01_volatility
+    Endpoint: /api/spot/price/history
+    Params (expected): exchange=Binance, symbol=BTCUSDT, interval=1d, limit=35
+
+    Returns:
+        {
+          "daily_vol_pct": float,
+          "annualized_vol_pct": float,
+          "price_change_30d_pct": float,
+          "ts": int,
+          "ts_date": str
+        }
+        or None
+    """
+    try:
+        import math, statistics
+        from datetime import datetime, timezone
+
+        if not isinstance(data, dict):
+            return None
+
+        inner = data.get("data", data)
+        if not isinstance(inner, list) or len(inner) < 31:
+            return None
+
+        window = inner[-31:]  # last 31 closes -> 30 returns
+        closes = []
+        times = []
+        for c in window:
+            if not isinstance(c, dict):
+                return None
+            close = c.get("close")
+            t = c.get("time")
+            if close is None or t is None:
+                return None
+            closes.append(float(close))
+            ts = int(t)
+            ts = ts // 1000 if ts > 10**12 else ts
+            times.append(ts)
+
+        if len(closes) < 31 or closes[0] == 0:
+            return None
+
+        rets = [math.log(closes[i] / closes[i-1]) for i in range(1, len(closes))]
+        stdev = statistics.pstdev(rets)
+        annual = stdev * math.sqrt(365)
+
+        price_change_30d_pct = ((closes[-1] - closes[0]) / closes[0]) * 100.0
+
+        ts_sec = times[-1]
+        ts_date = datetime.fromtimestamp(ts_sec, tz=timezone.utc).strftime("%Y-%m-%d")
+
+        return {
+            "daily_vol_pct": round(stdev * 100, 4),
+            "annualized_vol_pct": round(annual * 100, 2),
+            "price_change_30d_pct": round(price_change_30d_pct, 2),
+            "ts": ts_sec,
+            "ts_date": ts_date
+        }
+
+    except Exception:
+        return None
+
+
+# ============================================================================
+# NORMALIZER: ETF Bitcoin Holdings Total (monthly_12)
+# ============================================================================
+def normalize_etf_bitcoin_holdings_total(data: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+    """
+    Normalize total BTC held by spot Bitcoin ETFs.
+
+    Metric: monthly_12_etf_holdings
+    Endpoint: /api/etf/bitcoin/list
+    Params: none
+
+    Response Format:
+        {"code": "0", "data": [
+            {
+                "fund_type": "Spot",
+                "region": "us",
+                "asset_details": {
+                    "holding_quantity": 123456.78,
+                    "update_date": "2026-02-05"
+                },
+                "update_timestamp": 1738713600000
+            }, ...
+        ]}
+
+    Filter: fund_type=="Spot" AND region=="us"
+
+    Returns:
+        {
+            "total_btc": float,   # Sum of holding_quantity
+            "fund_count": int,    # Number of funds
+            "ts": int,            # Epoch seconds (max update_timestamp)
+            "ts_date": str        # YYYY-MM-DD (max update_date or derived)
+        }
+        or None on error
+    """
+    try:
+        from datetime import datetime, timezone
+
+        if not isinstance(data, dict):
+            return None
+
+        # Handle wrapped response
+        inner = data.get("data", data)
+        if isinstance(inner, dict) and "data" in inner:
+            inner = inner.get("data")
+        if not isinstance(inner, list):
+            return None
+
+        total_btc = 0.0
+        fund_count = 0
+        max_ts = 0
+        max_date = ""
+
+        for item in inner:
+            if not isinstance(item, dict):
+                continue
+
+            fund_type = item.get("fund_type", "")
+            region = item.get("region", "")
+
+            # Filter: Spot US ETFs only (STRICT)
+            if fund_type != "Spot" or region != "us":
+                continue
+
+            asset_details = item.get("asset_details", {})
+            if not isinstance(asset_details, dict):
+                continue
+
+            holding = asset_details.get("holding_quantity")
+            if holding is None:
+                continue
+
+            try:
+                holding_val = float(holding)
+            except (ValueError, TypeError):
+                continue
+
+            total_btc += holding_val
+            fund_count += 1
+
+            # Track max timestamp
+            ts_ms = item.get("update_timestamp")
+            if ts_ms:
+                try:
+                    ts_val = int(ts_ms)
+                    if ts_val > max_ts:
+                        max_ts = ts_val
+                except (ValueError, TypeError):
+                    pass
+
+            # Track max date
+            update_date = asset_details.get("update_date", "")
+            if update_date and update_date > max_date:
+                max_date = update_date
+
+        if fund_count == 0 or total_btc <= 0:
+            return None
+
+        # Convert ms to seconds
+        ts_sec = max_ts // 1000 if max_ts > 1e12 else max_ts
+
+        # Derive ts_date
+        if max_date:
+            ts_date = max_date
+        elif ts_sec > 0:
+            dt = datetime.fromtimestamp(ts_sec, tz=timezone.utc)
+            ts_date = dt.strftime("%Y-%m-%d")
+        else:
+            ts_date = ""
+
+        return {
+            "total_btc": round(total_btc, 2),
+            "fund_count": fund_count,
+            "ts": ts_sec,
+            "ts_date": ts_date
+        }
+
+    except Exception:
+        return None
+
 
 # Helper function for unwrapping CoinGlass API response
 def _unwrap_coinglass_data(payload):
