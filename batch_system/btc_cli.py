@@ -165,7 +165,7 @@ def main():
     # MONTHLY POC: Two-metric smoke (monthly_09, monthly_10)
     # ========================================================================
     monthly_metrics = PANEL_REGISTRY.get("monthly", [])
-    want_ids = ["monthly_09_stablecoin_market_cap", "monthly_10_futures_oi_growth", "monthly_01_volatility", "monthly_12_etf_holdings", "monthly_13_grayscale_institutional"]
+    want_ids = ["monthly_09_stablecoin_market_cap", "monthly_10_futures_oi_growth", "monthly_11_options_vol_growth", "monthly_01_volatility", "monthly_12_etf_holdings", "monthly_13_grayscale_institutional"]
     want = {mid: None for mid in want_ids}
 
     for m in monthly_metrics:
@@ -192,6 +192,12 @@ def main():
         "Futures OI Growth",
         lambda v: f"\nMONTHLY (POC): ✅ Futures OI Growth: {v.get('value_b')}B (30d: {('+' if v.get('change_30d_b',0)>=0 else '')}{v.get('change_30d_b')}B, {('+' if v.get('change_30d_pct',0)>=0 else '')}{v.get('change_30d_pct')}%) | {v.get('ts_date','')}",
         want.get("monthly_10_futures_oi_growth"),
+    )
+
+    _print_monthly_line(
+        "Options Volume Growth (30d)",
+        lambda v: f"\nMONTHLY (POC): ✅ Options Vol Growth: {(v.get('total_30d_usd',0)/1e9):.2f}B (prev: {(v.get('prev_30d_usd',0)/1e9):.2f}B, {('+' if v.get('growth_pct_30d',0)>=0 else '')}{v.get('growth_pct_30d')}%) | {v.get('end_date','')}",
+        want.get("monthly_11_options_vol_growth"),
     )
 
     _print_monthly_line(

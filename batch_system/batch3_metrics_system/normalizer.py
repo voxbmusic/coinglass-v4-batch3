@@ -2266,6 +2266,113 @@ def normalize_grayscale_us_holdings_total(data: Dict[str, Any]) -> Optional[Dict
         return None
 
 
+
+# ============================================================================
+# NORMALIZER: Options Volume Growth (monthly_11)
+# ============================================================================
+def normalize_options_volume_growth_30d(data: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+    """
+    Normalize 30-day options volume growth (USD), using /api/option/exchange-vol-history.
+
+    Metric: monthly_11_options_vol_growth
+    Endpoint: /api/option/exchange-vol-history
+
+    API returns ~2040 daily points (full history). We slice last 60 points:
+    - last30: days [30:60] = most recent 30 days total USD volume
+    - prev30: days [0:30] = previous 30 days total USD volume
+    - growth_pct = (last30 - prev30) / prev30 * 100
+
+    Expected payload shape:
+      {"code": 0, "data": {"time_list": [...], "data_map": {"Deribit": [...], ...}}}
+
+    Returns:
+      {
+        "total_30d_usd": float,
+        "prev_30d_usd": float,
+        "growth_pct_30d": float,
+        "start_date": "YYYY-MM-DD",
+        "end_date": "YYYY-MM-DD",
+        "points": int
+      }
+      or None on error
+    """
+    try:
+        from datetime import datetime, timezone
+
+        if not isinstance(data, dict):
+            return None
+
+        # Code guard - accept both int 0 and string "0"
+        code = data.get("code")
+        if code is not None and str(code) != "0":
+            return None
+
+        # unwrap - orchestrator returns full payload {"code":0,"data":{...}}
+        inner = data.get("data", data)
+        if isinstance(inner, dict) and "data" in inner:
+            inner = inner.get("data")
+        if not isinstance(inner, dict):
+            return None
+
+        time_list = inner.get("time_list") or []
+        data_map  = inner.get("data_map") or {}
+
+        if not isinstance(time_list, list) or not time_list:
+            return None
+        if not isinstance(data_map, dict) or not data_map:
+            return None
+
+        # Need at least 60 points for 30d vs prior 30d
+        if len(time_list) < 60:
+            return None
+
+        # slice last 60 points (explicit, since API returns long history)
+        i1 = len(time_list)
+        i0 = i1 - 60
+        mid = i1 - 30  # split: [i0:mid] prev 30, [mid:i1] last 30
+
+        def day(ts_ms: int) -> str:
+            try:
+                dt = datetime.fromtimestamp(int(ts_ms)/1000, tz=timezone.utc)
+                return dt.strftime("%Y-%m-%d")
+            except Exception:
+                return ""
+
+        start_date = day(time_list[mid])     # first day of last-30 window
+        end_date   = day(time_list[i1-1])    # last day
+
+        last_total = 0.0
+        prev_total = 0.0
+
+        for ex, series in data_map.items():
+            if not isinstance(series, list):
+                continue
+            if len(series) != len(time_list):
+                continue
+
+            # Sum last 30 and previous 30
+            prev_total += sum(float(x or 0) for x in series[i0:mid])
+            last_total += sum(float(x or 0) for x in series[mid:i1])
+
+        if last_total <= 0 or prev_total <= 0:
+            return None
+
+        growth_pct = (last_total - prev_total) / prev_total * 100.0
+
+        return {
+            "total_30d_usd": round(last_total, 2),
+            "prev_30d_usd": round(prev_total, 2),
+            "growth_pct_30d": round(growth_pct, 2),
+            "start_date": start_date,
+            "end_date": end_date,
+            "points": 30
+        }
+
+    except Exception:
+        return None
+
+
+
 # Helper function for unwrapping CoinGlass API response
 def _unwrap_coinglass_data(payload):
     """
