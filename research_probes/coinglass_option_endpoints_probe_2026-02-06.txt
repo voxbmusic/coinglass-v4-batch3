@@ -1,0 +1,7 @@
+Fri Feb  6 12:25:59 +03 2026
+
+=== option exchange-oi-history (expected FAIL) ===
+{"code":"500","msg":"Server Error"}
+
+=== option info (works) ===
+{"code":"0","data":[{"exchange_name":"All","open_interest":478141.41,"oi_market_share":100,"open_interest_change_24h":4.58,"open_interest_usd":31222890891.645786,"volume_usd_24h":13694700418.701372,"volume_change_percent_24h":130.62},{"exchange_name":"Deribit","open_interest":386903.7,"oi_market_share":80.91,"open_interest_change_24h":4.13,"open_interest_usd":25251740093.1331,"volume_usd_24h":9152122293.9772},{"exchange_name":"OKX","open_interest":40796.75,"oi_market_share":8.53,"open_interest_c ...
