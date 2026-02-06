@@ -2156,6 +2156,116 @@ def normalize_etf_bitcoin_holdings_total(data: Dict[str, Any]) -> Optional[Dict[
         return None
 
 
+# ============================================================================
+# NORMALIZER: Grayscale US Holdings Total (monthly_13)
+# ============================================================================
+def normalize_grayscale_us_holdings_total(data: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+    """
+    Normalize total BTC held by Grayscale US products.
+
+    Metric: monthly_13_grayscale_institutional
+    Endpoint: /api/etf/bitcoin/list
+    Params: none
+
+    Filter: region=="us" AND fund name contains "grayscale" (case-insensitive)
+
+    Returns:
+        {
+            "total_btc": float,   # Sum of holding_quantity
+            "fund_count": int,    # Number of funds
+            "ts": int,            # Epoch seconds (max update_timestamp)
+            "ts_date": str        # YYYY-MM-DD (max update_date or derived)
+        }
+        or None on error
+    """
+    try:
+        from datetime import datetime, timezone
+
+        if not isinstance(data, dict):
+            return None
+
+        # Handle wrapped response
+        inner = data.get("data", data)
+        if isinstance(inner, dict) and "data" in inner:
+            inner = inner.get("data")
+        if not isinstance(inner, list):
+            return None
+
+        total_btc = 0.0
+        fund_count = 0
+        max_ts = 0
+        max_date = ""
+
+        for item in inner:
+            if not isinstance(item, dict):
+                continue
+
+            region = item.get("region", "")
+            fund_name = item.get("fund_name", "") or item.get("name", "")
+
+            # Filter: region=="us" AND name contains "grayscale"
+            if region != "us":
+                continue
+            if "grayscale" not in fund_name.lower():
+                continue
+
+            asset_details = item.get("asset_details", {})
+            if not isinstance(asset_details, dict):
+                continue
+
+            holding = asset_details.get("holding_quantity")
+            if holding is None:
+                continue
+
+            try:
+                holding_val = float(holding)
+            except (ValueError, TypeError):
+                continue
+
+            total_btc += holding_val
+            fund_count += 1
+
+            # Track max timestamp
+            ts_ms = item.get("update_timestamp")
+            if ts_ms:
+                try:
+                    ts_val = int(ts_ms)
+                    if ts_val > max_ts:
+                        max_ts = ts_val
+                except (ValueError, TypeError):
+                    pass
+
+            # Track max date
+            update_date = asset_details.get("update_date", "")
+            if update_date and update_date > max_date:
+                max_date = update_date
+
+        if fund_count == 0 or total_btc <= 0:
+            return None
+
+        # Convert ms to seconds
+        ts_sec = max_ts // 1000 if max_ts > 1e12 else max_ts
+
+        # Derive ts_date
+        if max_date:
+            ts_date = max_date
+        elif ts_sec > 0:
+            dt = datetime.fromtimestamp(ts_sec, tz=timezone.utc)
+            ts_date = dt.strftime("%Y-%m-%d")
+        else:
+            ts_date = ""
+
+        return {
+            "total_btc": round(total_btc, 2),
+            "fund_count": fund_count,
+            "ts": ts_sec,
+            "ts_date": ts_date
+        }
+
+    except Exception:
+        return None
+
+
 # Helper function for unwrapping CoinGlass API response
 def _unwrap_coinglass_data(payload):
     """
