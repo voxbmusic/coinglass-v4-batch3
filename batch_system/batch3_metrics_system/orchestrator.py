@@ -138,7 +138,8 @@ class MetricOrchestrator:
             'normalize_volatility_30d': normalizer.normalize_volatility_30d,
             'normalize_etf_bitcoin_holdings_total': normalizer.normalize_etf_bitcoin_holdings_total,
             'normalize_grayscale_us_holdings_total': normalizer.normalize_grayscale_us_holdings_total
-        }
+,
+            'normalize_options_volume_growth_30d': normalizer.normalize_options_volume_growth_30d,        }
     
     def fetch_and_normalize(self, metric: MetricDefinition) -> MetricResult:
         """
@@ -230,18 +231,20 @@ class MetricOrchestrator:
             # Fetch from API
             response = self.api.fetch(metric.endpoint, normalized_params)
 
-            # Extract data from APIResponse
-            # In Batch 2, response is APIResponse object with .data attribute
+            # IMPORTANT:
+            # Normalizers expect the FULL payload dict: {"code","msg","data","success",...}
+            # Batch2 returns APIResponse with .data holding that dict.
             if response is None:
                 return None
 
-            # Handle both APIResponse object and dict (for compatibility)
-            if hasattr(response, 'data'):
-                return response.data
+            if hasattr(response, "data") and isinstance(getattr(response, "data"), dict):
+                payload = response.data
             elif isinstance(response, dict):
-                return response.get('data')
+                payload = response
             else:
                 return None
+
+            return payload
                 
         except Exception:
             # Any fetch error => return None

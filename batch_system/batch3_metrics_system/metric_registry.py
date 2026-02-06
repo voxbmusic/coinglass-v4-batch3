@@ -685,17 +685,23 @@ MONTHLY_METRICS: List[MetricDefinition] = [
         description="30-day derivatives market growth (BTC aggregated OI)",
         implementation_notes="Compute % change: last_close vs close_30d_ago from /api/futures/open-interest/aggregated-history interval=1d"
     ),
-    # monthly_11 - Options OI Growth
-    create_registry_metric(
-        registry_id="monthly_11_options_oi_growth",
-        name="Options OI Growth",
+    # monthly_11 - Options Volume Growth (IMPLEMENTED)
+    MetricDefinition(
+        id="monthly_11_options_vol_growth",
+        name="Options Volume Growth",
         timeframe="30d",
         category="open_interest",
-        data_source=DataSource.EXTERNAL,
-        min_plan=PlanTier.PREMIUM,
+        endpoint="/api/option/exchange-vol-history",
+        params={"symbol": "BTC", "exchange": "All", "range": "60d", "interval": "1d", "limit": "60", "unit": "usd"},
+        api_confidence=APIConfidence.UNVERIFIED,
+        default_status=MetricStatus.OK,
+        data_source=DataSource.COINGLASS,
+        min_plan=PlanTier.STARTUP,
+        implemented=True,
+        normalizer="normalize_options_volume_growth_30d",
         unit="percent",
-        description="30-day options market growth",
-        implementation_notes="Deribit options data"
+        description="30-day options volume growth (total vs prior 30d, USD)",
+        implementation_notes="CoinGlass /api/option/exchange-vol-history; sum last 30 points across exchanges and compare to prior 30 points"
     ),
     
     # monthly_12 - ETF Holdings (IMPLEMENTED)
