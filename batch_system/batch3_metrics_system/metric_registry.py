@@ -717,17 +717,23 @@ MONTHLY_METRICS: List[MetricDefinition] = [
         implementation_notes="CoinGlass /api/etf/bitcoin/list; sum asset_details.holding_quantity; filter fund_type=Spot region=us"
     ),
     
-    # monthly_13 - Grayscale/Institutional
-    create_registry_metric(
-        registry_id="monthly_13_grayscale_institutional",
+    # monthly_13 - Grayscale/Institutional (IMPLEMENTED)
+    MetricDefinition(
+        id="monthly_13_grayscale_institutional",
         name="Grayscale/Institutional",
         timeframe="30d",
         category="open_interest",
-        data_source=DataSource.EXTERNAL,
+        endpoint="/api/etf/bitcoin/list",
+        params={},
+        api_confidence=APIConfidence.CONFIRMED,
+        default_status=MetricStatus.OK,
+        data_source=DataSource.COINGLASS,
         min_plan=PlanTier.STARTUP,
+        implemented=True,
+        normalizer="normalize_grayscale_us_holdings_total",
         unit="btc",
-        description="Bitcoin in institutional trusts",
-        implementation_notes="GBTC and similar products"
+        description="Grayscale US products (name contains Grayscale) total BTC holdings",
+        implementation_notes="CoinGlass /api/etf/bitcoin/list; filter region=us AND name contains grayscale"
     ),
     
     # monthly_14 - Social Volume

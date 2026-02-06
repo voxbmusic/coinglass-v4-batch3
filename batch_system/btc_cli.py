@@ -165,7 +165,7 @@ def main():
     # MONTHLY POC: Two-metric smoke (monthly_09, monthly_10)
     # ========================================================================
     monthly_metrics = PANEL_REGISTRY.get("monthly", [])
-    want_ids = ["monthly_09_stablecoin_market_cap", "monthly_10_futures_oi_growth", "monthly_01_volatility", "monthly_12_etf_holdings"]
+    want_ids = ["monthly_09_stablecoin_market_cap", "monthly_10_futures_oi_growth", "monthly_01_volatility", "monthly_12_etf_holdings", "monthly_13_grayscale_institutional"]
     want = {mid: None for mid in want_ids}
 
     for m in monthly_metrics:
@@ -204,6 +204,12 @@ def main():
         "ETF Holdings",
         lambda v: f"\nMONTHLY (POC): ✅ ETF Holdings: {v.get('total_btc')} BTC (funds: {v.get('fund_count')}) | {v.get('ts_date','')}",
         want.get("monthly_12_etf_holdings"),
+    )
+
+    _print_monthly_line(
+        "Grayscale/Institutional",
+        lambda v: f"\nMONTHLY (POC): ✅ Grayscale/Institutional: {v.get('total_btc')} BTC (funds: {v.get('fund_count')}) | {v.get('ts_date','')}",
+        want.get("monthly_13_grayscale_institutional"),
     )
 
 
