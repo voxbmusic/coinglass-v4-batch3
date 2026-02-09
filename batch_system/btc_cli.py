@@ -125,6 +125,7 @@ def main():
     print("\n" + "=" * 70)
     print("  BTC - HAFTALIK SAVAS PANELI (WEEKLY)")
     print("=" * 70)
+    print("WEEKLY METRICS")
 
     weekly_metrics = pick_weekly_skeleton_metrics()
     weekly_ok = 0
