@@ -162,61 +162,47 @@ def main():
     print("=" * 70)
 
     # ========================================================================
-    # MONTHLY POC: Two-metric smoke (monthly_09, monthly_10)
+    # MONTHLY PANEL (HYBRID: IMPLEMENTED METRICS FETCH, OTHERS SKELETON)
     # ========================================================================
+    print("\n" + "=" * 70)
+    print("  BTC - AYLIK SAVAS PANELI (MONTHLY)")
+    print("=" * 70)
+    print("MONTHLY METRICS")
+
     monthly_metrics = PANEL_REGISTRY.get("monthly", [])
-    want_ids = ["monthly_09_stablecoin_market_cap", "monthly_10_futures_oi_growth", "monthly_11_options_vol_growth", "monthly_01_volatility", "monthly_12_etf_holdings", "monthly_13_grayscale_institutional"]
-    want = {mid: None for mid in want_ids}
+    monthly_ok = 0
+    monthly_missing = 0
+    monthly_external = 0
+    monthly_locked = 0
 
-    for m in monthly_metrics:
-        if m.id in want:
-            want[m.id] = m
-
-    def _print_monthly_line(label, ok_fmt, metric):
-        if metric and getattr(metric, "implemented", False):
-            r = orchestrator.fetch_and_normalize(metric)
-            if r.status == MetricStatus.OK and isinstance(r.value, dict):
-                print(ok_fmt(r.value))
+    if not monthly_metrics:
+        print("  [No monthly metrics found in registry]")
+    else:
+        for metric in monthly_metrics:
+            if metric.implemented:
+                # Fetch real data for implemented metrics
+                result = orchestrator.fetch_and_normalize(metric)
+                if result.status == MetricStatus.OK:
+                    monthly_ok += 1
+                    print(f"  ✅ {metric.name}: {result.value}")
+                else:
+                    monthly_missing += 1
+                    print(f"  ❌ {metric.name}: N/A [MISSING]")
             else:
-                print(f"\nMONTHLY (POC): ❌ {label}: N/A [{r.status.value}]")
-        else:
-            print(f"\nMONTHLY (POC): 🔗 {label}: N/A [NOT_IMPLEMENTED]")
+                # Skeleton display for non-implemented metrics
+                symbol, status_text = get_skeleton_status(metric)
+                if status_text == "EXTERNAL_REQUIRED":
+                    monthly_external += 1
+                elif status_text == "LOCKED":
+                    monthly_locked += 1
+                else:
+                    monthly_missing += 1
+                print(f"  {symbol} {metric.name}: N/A [{status_text}]")
 
-    _print_monthly_line(
-        "Stablecoin Market Cap",
-        lambda v: f"\nMONTHLY (POC): ✅ Stablecoin Market Cap: {v.get('value_b')}B (30d: {('+' if v.get('change_30d_b',0)>=0 else '')}{v.get('change_30d_b')}B) | {v.get('ts_date','')}",
-        want.get("monthly_09_stablecoin_market_cap"),
-    )
-
-    _print_monthly_line(
-        "Futures OI Growth",
-        lambda v: f"\nMONTHLY (POC): ✅ Futures OI Growth: {v.get('value_b')}B (30d: {('+' if v.get('change_30d_b',0)>=0 else '')}{v.get('change_30d_b')}B, {('+' if v.get('change_30d_pct',0)>=0 else '')}{v.get('change_30d_pct')}%) | {v.get('ts_date','')}",
-        want.get("monthly_10_futures_oi_growth"),
-    )
-
-    _print_monthly_line(
-        "Options Volume Growth (30d)",
-        lambda v: f"\nMONTHLY (POC): ✅ Options Vol Growth: {(v.get('total_30d_usd',0)/1e9):.2f}B (prev: {(v.get('prev_30d_usd',0)/1e9):.2f}B, {('+' if v.get('growth_pct_30d',0)>=0 else '')}{v.get('growth_pct_30d')}%) | {v.get('end_date','')}",
-        want.get("monthly_11_options_vol_growth"),
-    )
-
-    _print_monthly_line(
-        "Volatility (30d)",
-        lambda v: f"\nMONTHLY (POC): ✅ Volatility (30d): {v.get('annualized_vol_pct')}% ann (daily: {v.get('daily_vol_pct')}%), price_30d: {('+' if v.get('price_change_30d_pct',0)>=0 else '')}{v.get('price_change_30d_pct')}% | {v.get('ts_date','')}",
-        want.get("monthly_01_volatility"),
-    )
-
-    _print_monthly_line(
-        "ETF Holdings",
-        lambda v: f"\nMONTHLY (POC): ✅ ETF Holdings: {v.get('total_btc')} BTC (funds: {v.get('fund_count')}) | {v.get('ts_date','')}",
-        want.get("monthly_12_etf_holdings"),
-    )
-
-    _print_monthly_line(
-        "Grayscale/Institutional",
-        lambda v: f"\nMONTHLY (POC): ✅ Grayscale/Institutional: {v.get('total_btc')} BTC (funds: {v.get('fund_count')}) | {v.get('ts_date','')}",
-        want.get("monthly_13_grayscale_institutional"),
-    )
+    print("\n" + "-" * 70)
+    print(f"  MONTHLY SUMMARY: {monthly_ok}/{len(monthly_metrics)} metrics OK")
+    print(f"  ✅ OK: {monthly_ok} | ❌ MISSING: {monthly_missing} | 🔗 EXTERNAL: {monthly_external} | 🔒 LOCKED: {monthly_locked}")
+    print("=" * 70)
 
 
 if __name__ == "__main__":
