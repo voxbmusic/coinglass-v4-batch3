@@ -169,7 +169,7 @@ DAILY_METRICS: List[MetricDefinition] = [
         timeframe="24h",
         category="liquidations",
         endpoint="/api/futures/liquidation/aggregated-history",
-        params={"interval": "4h", "limit": "6", "symbol": "BTC", "exchange_list": "Binance,OKX,Bybit"},
+        params={"interval": "4h", "limit": "6", "symbol": "BTC", "exchange_list": "ApeX Omni,Aster,Binance,BingX,Bitfinex,Bitget,Bitmex,Bitunix,Bybit,CME,CoinEx,Coinbase,Crypto.com,Deribit,Drift,EdgeX,Extended,Gate,Gemini,HTX,Hyperliquid,Kraken,KuCoin,LBank,Lighter,MEXC,OKX,Paradex,WhiteBIT,dYdX"},
         api_confidence=APIConfidence.CONFIRMED,
         normalizer="normalize_liquidations_total",
         unit="million_usd",
@@ -177,22 +177,26 @@ DAILY_METRICS: List[MetricDefinition] = [
         implementation_notes="Returns dict: {long, short, total, long_percent, short_percent}; v4 aggregated endpoint"
     ),
     
-    # daily_09 - Top Liquidation Events (24h, top 10)
-    create_daily_metric(
-        daily_id="daily_09_top_liquidation_events",
+    # daily_09 - Top Liquidation Events (24h, top 10) - LOCKED (requires plan upgrade)
+    MetricDefinition(
+        id="daily_09_top_liquidation_events",
         name="Top Liquidation Events",
         timeframe="24h",
         category="liquidations",
-        endpoint="/api/futures/liquidation/aggregated-history",
-        params={"interval": "4h", "limit": "6", "symbol": "BTC", "exchange_list": "Binance,OKX,Bybit"},
+        endpoint="/api/futures/liquidation/order",
+        params={"symbol": "BTC", "exchange_list": "Binance,OKX,Bybit", "limit": "10"},
         api_confidence=APIConfidence.CONFIRMED,
         normalizer="normalize_liquidation_events",
         unit="events",
-        description="Top 10 largest liquidations in 24h",
-        implementation_notes="Returns list[dict] with timestamp (epoch seconds), side, amount, exchange; v4 format"
+        description="Top 10 largest liquidation orders in last 24h (plan-locked on Startup)",
+        implementation_notes="LOCKED: /api/futures/liquidation/order returns 'Upgrade plan' on Startup. Requires PlanTier.STANDARD (or above).",
+        implemented=False,
+        default_status=MetricStatus.LOCKED,
+        data_source=DataSource.COINGLASS,
+        min_plan=PlanTier.STANDARD
     ),
-    
-    # daily_10 - Coinbase Premium Index (snapshot)
+
+# daily_10 - Coinbase Premium Index (snapshot)
     create_daily_metric(
         daily_id="daily_10_coinbase_premium_index",
         name="Coinbase Premium Index",
