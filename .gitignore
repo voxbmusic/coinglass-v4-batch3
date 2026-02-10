@@ -12,3 +12,9 @@ __pycache__/
 batch_system/.venv/
 __pycache__/
 .DS_Store
+
+# local API dumps / scratch
+catalog.json
+*_catalog.json
+*_supported_coins.json
+*_supported_exchange_pairs.json
