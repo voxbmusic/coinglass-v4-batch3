@@ -289,7 +289,7 @@ class TextFormatter:
         output = f"{symbol} {metric.name}: {value_str}"
         
         if verbose:
-            output += f" [{result.status.value}]"
+            output += f" [{result.status.value.upper()}]"
             if result.error:
                 output += f" - {result.error}"
         
