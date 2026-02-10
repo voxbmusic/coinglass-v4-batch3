@@ -111,7 +111,7 @@ def main():
     print("=" * 70)
     print("Timestamp: " + datetime.now().strftime("%Y-%m-%d %H:%M:%S"))
     
-    panel_text = TextFormatter.format_timeframe("daily", results, verbose=False)
+    panel_text = TextFormatter.format_timeframe("daily", results, verbose=True)
     print(panel_text)
     
     ok_count = sum(1 for r in results if r.status == MetricStatus.OK)
