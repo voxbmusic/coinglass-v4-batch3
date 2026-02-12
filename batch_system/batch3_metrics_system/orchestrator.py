@@ -146,6 +146,8 @@ class MetricOrchestrator:
 ,
             'normalize_options_volume_growth_30d': normalizer.normalize_options_volume_growth_30d,                    'normalize_binance_funding_rate_last': normalizer.normalize_binance_funding_rate_last,
             'normalize_binance_open_interest': normalizer.normalize_binance_open_interest,
+            'normalize_binance_oi_change_1h': normalizer.normalize_binance_oi_change_1h,
+            'normalize_binance_oi_change_4h': normalizer.normalize_binance_oi_change_4h,
 }
     
     def fetch_and_normalize(self, metric: MetricDefinition) -> MetricResult:

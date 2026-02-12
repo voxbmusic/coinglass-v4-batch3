@@ -237,6 +237,32 @@ DAILY_METRICS: List[MetricDefinition] = [
         description="Binance Futures BTCUSDT perpetual open interest (base asset units).",
         implementation_notes="Free-mode provider: Binance Futures public endpoint /fapi/v1/openInterest; normalized to float.",
     ),
+    create_daily_metric(
+        daily_id="daily_15_binance_oi_change_1h",
+        name="OI Change (1h, Binance Futures)",
+        timeframe="1h",
+        category="open_interest",
+        endpoint="/futures/data/openInterestHist",
+        params={"symbol": "BTCUSDT", "period": "1h", "limit": "2"},
+        api_confidence=APIConfidence.UNVERIFIED,
+        normalizer="normalize_binance_oi_change_1h",
+        unit="percent",
+        description="1-hour percentage change in BTCUSDT open interest (Binance Futures).",
+        implementation_notes="Binance endpoint /futures/data/openInterestHist; uses sumOpenInterestValue when available; compares last 2 points.",
+    ),
+    create_daily_metric(
+        daily_id="daily_16_binance_oi_change_4h",
+        name="OI Change (4h, Binance Futures)",
+        timeframe="4h",
+        category="open_interest",
+        endpoint="/futures/data/openInterestHist",
+        params={"symbol": "BTCUSDT", "period": "4h", "limit": "2"},
+        api_confidence=APIConfidence.UNVERIFIED,
+        normalizer="normalize_binance_oi_change_4h",
+        unit="percent",
+        description="4-hour percentage change in BTCUSDT open interest (Binance Futures).",
+        implementation_notes="Binance endpoint /futures/data/openInterestHist; uses sumOpenInterestValue when available; compares last 2 points.",
+    ),
 ]
 
 

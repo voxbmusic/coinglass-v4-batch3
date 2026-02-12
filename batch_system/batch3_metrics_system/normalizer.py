@@ -2687,3 +2687,45 @@ def normalize_binance_open_interest(payload):
         return float(v)
     except Exception:
         return None
+
+def normalize_binance_oi_change_1h(payload):
+    if isinstance(payload, dict) and isinstance(payload.get("data"), list):
+        payload = payload.get("data")
+    if not isinstance(payload, list) or len(payload) < 2:
+        return None
+    a, b = payload[-2], payload[-1]
+    if not isinstance(a, dict) or not isinstance(b, dict):
+        return None
+    prev = a.get("sumOpenInterestValue", a.get("sumOpenInterest"))
+    last = b.get("sumOpenInterestValue", b.get("sumOpenInterest"))
+    if prev is None or last is None:
+        return None
+    try:
+        prev = float(prev)
+        last = float(last)
+    except Exception:
+        return None
+    if prev == 0:
+        return None
+    return round(((last - prev) / prev) * 100.0, 4)
+
+def normalize_binance_oi_change_4h(payload):
+    if isinstance(payload, dict) and isinstance(payload.get("data"), list):
+        payload = payload.get("data")
+    if not isinstance(payload, list) or len(payload) < 2:
+        return None
+    a, b = payload[-2], payload[-1]
+    if not isinstance(a, dict) or not isinstance(b, dict):
+        return None
+    prev = a.get("sumOpenInterestValue", a.get("sumOpenInterest"))
+    last = b.get("sumOpenInterestValue", b.get("sumOpenInterest"))
+    if prev is None or last is None:
+        return None
+    try:
+        prev = float(prev)
+        last = float(last)
+    except Exception:
+        return None
+    if prev == 0:
+        return None
+    return round(((last - prev) / prev) * 100.0, 4)

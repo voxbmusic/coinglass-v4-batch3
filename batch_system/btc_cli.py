@@ -15,7 +15,9 @@ if os.getenv("DATA_MODE","").strip().lower() == "free":
         "daily_12_price_last_close",
     
         "daily_13_binance_funding_rate_last",
-        "daily_14_binance_open_interest",]
+        "daily_14_binance_open_interest",
+        "daily_15_binance_oi_change_1h",
+        "daily_16_binance_oi_change_4h",]
 else:
     DAILY_MINIMAL_IDS = [
     "daily_01_total_open_interest",
