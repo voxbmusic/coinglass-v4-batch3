@@ -2620,3 +2620,26 @@ def normalize_funding_regime(data: Dict[str, Any]) -> Optional[Dict[str, Any]]:
         return None
     return _funding_regime_summary(series, interval_hours=8)
 
+
+
+def normalize_price_last_close(payload: Any) -> Optional[float]:
+    try:
+        if hasattr(payload, "data"):
+            payload = getattr(payload, "data")
+    except Exception:
+        pass
+
+    if isinstance(payload, dict) and isinstance(payload.get("data"), list):
+        payload = payload.get("data")
+
+    if not isinstance(payload, list) or not payload:
+        return None
+
+    last = payload[-1]
+    if isinstance(last, list) and len(last) >= 5:
+        try:
+            return float(last[4])
+        except Exception:
+            return None
+
+    return None

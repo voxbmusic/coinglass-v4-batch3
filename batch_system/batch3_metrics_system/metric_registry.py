@@ -801,6 +801,24 @@ DAILY_METRICS.append(
         "Derived metric: uses funding history series and summarizes mean/vol/z/flip/slope/carry style features."
     )
 )
+
+# daily_p01 - Price (BTCUSDT) Last Close (1h) - public Binance
+DAILY_METRICS.append(
+    create_daily_metric(
+        "daily_12_price_last_close",
+        "BTCUSDT Last Close (1h)",
+        "1h",
+        "price",
+        "/api/v3/klines",
+        {"symbol": "BTCUSDT", "interval": "1h", "limit": "2"},
+        APIConfidence.CONFIRMED,
+        "normalize_price_last_close",
+        "usd",
+        "Last close price from Binance 1h klines (public, no key).",
+        "Provider: BinancePublicAPI. Uses last kline close."
+    )
+)
+
 PANEL_REGISTRY: Dict[str, List[MetricDefinition]] = {
     'daily': DAILY_METRICS,
     'weekly': WEEKLY_METRICS,

@@ -120,6 +120,9 @@ class MetricOrchestrator:
             'normalize_liquidation_events': normalizer.normalize_liquidation_events,
 
             "normalize_funding_regime": normalizer.normalize_funding_regime,
+
+
+            "normalize_price_last_close": normalizer.normalize_price_last_close,
             'normalize_coinbase_premium': normalizer.normalize_coinbase_premium,
             # Weekly normalizers
             'normalize_fear_greed_index': normalizer.normalize_fear_greed_index,
@@ -204,53 +207,43 @@ class MetricOrchestrator:
             value=normalized_value,
             error=None
         )
-    
-    def _fetch_raw_data(self, metric: MetricDefinition) -> Optional[Dict[str, Any]]:
+    def _fetch_raw_data(self, metric: MetricDefinition) -> Optional[Any]:
         """
-        Fetch raw data from CoinGlass API
-
-        Supports two modes:
-        1. Single endpoint: Uses metric.endpoint + metric.params
-        2. Multi-endpoint (fetch_plan): Fetches multiple endpoints, combines results
-
-        Args:
-            metric: MetricDefinition with endpoint/params OR fetch_plan
+        Fetch raw data from current provider (CoinGlass, Binance, etc.)
 
         Returns:
-            Single endpoint: Raw API response data (APIResponse.data)
-            Multi-endpoint: Combined dict {"name1": data1, "name2": data2, ...}
-            None if any fetch failed
+            - dict payload for CoinGlass-style responses
+            - list payload for Binance-style responses (e.g., klines)
+            - None on failure
         """
         try:
-            # Check for multi-endpoint fetch_plan
             if metric.fetch_plan:
                 return self._fetch_multi_endpoint(metric.fetch_plan)
 
-            # Single endpoint mode (original behavior)
-            # Normalize params using Batch 2 normalize_params
-            normalized_params = normalize_params(metric.params or {}, metric.endpoint)
+            params = metric.params or {}
+            try:
+                if isinstance(params, dict) and isinstance(metric.endpoint, str) and metric.endpoint.startswith("/api/futures/"):
+                    params = normalize_params(params, metric.endpoint)
+            except Exception:
+                params = metric.params or {}
 
-            # Fetch from API
-            response = self.api.fetch(metric.endpoint, normalized_params)
-
-            # IMPORTANT:
-            # Normalizers expect the FULL payload dict: {"code","msg","data","success",...}
-            # Batch2 returns APIResponse with .data holding that dict.
+            response = self.api.fetch(metric.endpoint, params)
             if response is None:
                 return None
 
             if hasattr(response, "data") and isinstance(getattr(response, "data"), dict):
-                payload = response.data
-            elif isinstance(response, dict):
-                payload = response
-            else:
-                return None
+                return response.data
 
-            return payload
-                
-        except Exception:
-            # Any fetch error => return None
+            if isinstance(response, dict):
+                return response
+
+            if isinstance(response, list):
+                return response
+
             return None
+        except Exception:
+            return None
+
 
     def _fetch_multi_endpoint(self, fetch_plan: List[Dict[str, Any]]) -> Optional[Dict[str, Any]]:
         """
