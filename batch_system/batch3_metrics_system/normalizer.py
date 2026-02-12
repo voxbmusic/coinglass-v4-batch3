@@ -2386,3 +2386,69 @@ def _unwrap_coinglass_data(payload):
             return payload.get("data")
         return payload
     return payload
+
+
+def normalize_cme_cftc_long_short(rows):
+    # Accept both raw dict (external fetch contract) and list[dict]
+    if isinstance(rows, dict):
+        rows = rows.get("data")
+    if not isinstance(rows, list):
+        return None
+
+    """
+    Input: rows = list[dict] from CFTCLegacyClient.fetch_cme_bitcoin_legacy(limit=1..)
+    Output: dict for panel
+    """
+    if not rows:
+        return None
+
+    row = rows[0]
+
+    def fnum(x):
+        try:
+            return float(x)
+        except Exception:
+            return None
+
+    ncl = fnum(row.get("noncomm_positions_long_all"))
+    ncs = fnum(row.get("noncomm_positions_short_all"))
+    cml = fnum(row.get("comm_positions_long_all"))
+    cms = fnum(row.get("comm_positions_short_all"))
+    nrl = fnum(row.get("nonrept_positions_long_all"))
+    nrs = fnum(row.get("nonrept_positions_short_all"))
+
+    def ratio(L, S):
+        if L is None or S is None or S == 0:
+            return None
+        return round(L / S, 4)
+
+    return {
+        "report_date": row.get("report_date_as_yyyy_mm_dd"),
+        "open_interest_all": fnum(row.get("open_interest_all")),
+        "noncomm": {"long": ncl, "short": ncs, "ratio": ratio(ncl, ncs)},
+        "comm":    {"long": cml, "short": cms, "ratio": ratio(cml, cms)},
+        "nonrept": {"long": nrl, "short": nrs, "ratio": ratio(nrl, nrs)},
+    }
+
+def normalize_cme_cftc_open_interest(rows):
+    # Accept both raw dict (external fetch contract) and list[dict]
+    if isinstance(rows, dict):
+        rows = rows.get("data")
+    if not isinstance(rows, list):
+        return None
+
+    """
+    Input: rows (limit=1)
+    Output: dict for panel
+    """
+    if not rows:
+        return None
+    row = rows[0]
+    try:
+        oi = float(row.get("open_interest_all"))
+    except Exception:
+        oi = None
+    return {
+        "report_date": row.get("report_date_as_yyyy_mm_dd"),
+        "open_interest_all": oi
+    }

@@ -3,6 +3,7 @@ import sys
 from datetime import datetime
 
 from batch2_engine.coinglass import CoinGlassAPI
+from batch2_engine.free_api import FreeAPI
 from batch3_metrics_system.orchestrator import MetricOrchestrator
 from batch3_metrics_system.metric_registry import PANEL_REGISTRY
 from batch3_metrics_system.output import TextFormatter
@@ -83,17 +84,25 @@ def get_skeleton_status(metric):
     return "✅", "OK"
 
 def main():
-    api_key = os.getenv("COINGLASS_API_KEY", "").strip()
-    if not api_key:
-        print("ERROR: COINGLASS_API_KEY is not set.")
-        print("Usage:")
-        print("  export COINGLASS_API_KEY=your_key")
-        print("  python3 -m batch_system.btc_cli")
-        print("  or")
-        print("  python3 batch_system/btc_cli.py")
-        sys.exit(1)
+    data_mode = os.getenv("DATA_MODE", "coinglass").strip().lower()
 
-    api = CoinGlassAPI(api_key)
+    # DATA_MODE=free  -> no CoinGlass key required (FreeAPI stub/provider hub)
+    # DATA_MODE=coinglass -> requires COINGLASS_API_KEY
+    if data_mode == "free":
+        api = FreeAPI()
+    else:
+        api_key = os.getenv("COINGLASS_API_KEY", "").strip()
+        if not api_key:
+            print("ERROR: COINGLASS_API_KEY is not set (DATA_MODE=coinglass).")
+            print("Tip: set DATA_MODE=free to run without CoinGlass.")
+            print("Usage:")
+            print("  export DATA_MODE=free")
+            print("  python3 batch_system/btc_cli.py")
+            print("  or (CoinGlass mode)")
+            print("  export COINGLASS_API_KEY=your_key")
+            print("  python3 batch_system/btc_cli.py")
+            sys.exit(1)
+        api = CoinGlassAPI(api_key)
     orchestrator = MetricOrchestrator(api)
     metrics = pick_daily_minimal_metrics()
     
@@ -103,6 +112,17 @@ def main():
         sys.exit(2)
     
     results = []
+
+    # FREE_SMOKE=1 -> fetch only 1 metric to avoid rate-limit while wiring free providers
+    # Optional: FREE_SMOKE_ID=<metric_id> to pick a specific metric instead of the first one
+    free_smoke = os.getenv("FREE_SMOKE", "0").strip() == "1"
+    if free_smoke and os.getenv("DATA_MODE", "").strip().lower() == "free":
+        free_smoke_id = os.getenv("FREE_SMOKE_ID", "").strip()
+        if free_smoke_id:
+            metrics = [m for m in metrics if getattr(m, "id", "") == free_smoke_id][:1]
+        else:
+            metrics = metrics[:1]
+
     for metric in metrics:
         results.append(orchestrator.fetch_and_normalize(metric))
     
@@ -123,6 +143,10 @@ def main():
     # WEEKLY PANEL (HYBRID: IMPLEMENTED METRICS FETCH, OTHERS SKELETON)
     # ========================================================================
     print("\n" + "=" * 70)
+    # FREE_SMOKE (free mode): skip weekly/monthly to avoid extra calls
+    if free_smoke and os.getenv("DATA_MODE", "").strip().lower() == "free":
+        return
+
     print("  BTC - HAFTALIK SAVAS PANELI (WEEKLY)")
     print("=" * 70)
     print("WEEKLY METRICS")

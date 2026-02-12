@@ -238,34 +238,41 @@ WEEKLY_METRICS: List[MetricDefinition] = [
         unit="billion_usd",
         description="7-day open interest trend (current OI + 7d delta)",
         implementation_notes="CoinGlass aggregated-history; returns {value, change_7d} in billions USD"
-    ),
-    
-    # weekly_02 - CME OI (7d)
-    create_registry_metric(
-        registry_id="weekly_02_cme_oi",
+    ),    # weekly_02 - CME OI (7d) (IMPLEMENTED via CFTC COT)
+    MetricDefinition(
+        id="weekly_02_cme_oi",
         name="CME OI (7d)",
         timeframe="7d",
         category="open_interest",
-        data_source=DataSource.EXTERNAL,
+        endpoint="cftc://legacy/futonly/6dca-aqww/cme-bitcoin",
+        params={"limit": "1"},
+        api_confidence=APIConfidence.CONFIRMED,
+        default_status=MetricStatus.OK,
+        data_source=DataSource.CFTC,
         min_plan=PlanTier.STARTUP,
-        unit="billion_usd",
-        description="CME Bitcoin futures open interest",
-        implementation_notes="Requires CME data feed"
-    ),
-    
-    # weekly_03 - CME Long/Short
-    create_registry_metric(
-        registry_id="weekly_03_cme_long_short",
+        implemented=True,
+        normalizer="normalize_cme_cftc_open_interest",
+        unit="contracts",
+        description="CME Bitcoin futures open interest (CFTC COT legacy futures-only)",
+        implementation_notes="Source: CFTC publicreporting (Socrata) dataset 6dca-aqww; market_and_exchange_names='BITCOIN - CHICAGO MERCANTILE EXCHANGE'"
+    ),    # weekly_03 - CME Long/Short (IMPLEMENTED via CFTC COT)
+    MetricDefinition(
+        id="weekly_03_cme_long_short",
         name="CME Long/Short",
         timeframe="7d",
         category="long_short",
-        data_source=DataSource.EXTERNAL,
+        endpoint="cftc://legacy/futonly/6dca-aqww/cme-bitcoin",
+        params={"limit": "1"},
+        api_confidence=APIConfidence.CONFIRMED,
+        default_status=MetricStatus.OK,
+        data_source=DataSource.CFTC,
         min_plan=PlanTier.STARTUP,
+        implemented=True,
+        normalizer="normalize_cme_cftc_long_short",
         unit="ratio",
-        description="CME positioning from COT report",
-        implementation_notes="Weekly COT data from CFTC"
+        description="CME positioning ratios derived from CFTC COT (Non-Commercial / Commercial / Non-Reportable)",
+        implementation_notes="Computes L/S ratios from noncomm_positions_* , comm_positions_* , nonrept_positions_*"
     ),
-    
     # weekly_04 - Basis Spread (7d) (IMPLEMENTED)
     MetricDefinition(
         id="weekly_04_basis_spread",

@@ -51,7 +51,9 @@ class MetricStatus(Enum):
 
 class DataSource(Enum):
     """Data source types"""
-    COINGLASS = "coinglass"    # Available in CoinGlass API
+    COINGLASS = "coinglass"    
+    CFTC = 'cftc'
+# Available in CoinGlass API
     EXTERNAL = "external"      # Requires external API
     COMPUTED = "computed"      # Derived/calculated metric
 
