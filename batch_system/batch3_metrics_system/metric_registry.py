@@ -224,6 +224,19 @@ DAILY_METRICS: List[MetricDefinition] = [
         description="Latest BTCUSDT funding rate from Binance Futures (most recent funding entry).",
         implementation_notes="Free-mode provider: Binance Futures public endpoint /fapi/v1/fundingRate; normalized to percent + fundingTime.",
     ),
+    create_daily_metric(
+        daily_id="daily_14_binance_open_interest",
+        name="Open Interest (snapshot, Binance Futures)",
+        timeframe="snapshot",
+        category="open_interest",
+        endpoint="/fapi/v1/openInterest",
+        params={"symbol": "BTCUSDT"},
+        api_confidence=APIConfidence.UNVERIFIED,
+        normalizer="normalize_binance_open_interest",
+        unit="BTC",
+        description="Binance Futures BTCUSDT perpetual open interest (base asset units).",
+        implementation_notes="Free-mode provider: Binance Futures public endpoint /fapi/v1/openInterest; normalized to float.",
+    ),
 ]
 
 

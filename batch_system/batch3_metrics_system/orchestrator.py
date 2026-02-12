@@ -145,6 +145,7 @@ class MetricOrchestrator:
             'normalize_grayscale_us_holdings_total': normalizer.normalize_grayscale_us_holdings_total
 ,
             'normalize_options_volume_growth_30d': normalizer.normalize_options_volume_growth_30d,                    'normalize_binance_funding_rate_last': normalizer.normalize_binance_funding_rate_last,
+            'normalize_binance_open_interest': normalizer.normalize_binance_open_interest,
 }
     
     def fetch_and_normalize(self, metric: MetricDefinition) -> MetricResult:

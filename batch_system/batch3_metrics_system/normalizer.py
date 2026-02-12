@@ -2671,3 +2671,19 @@ def normalize_binance_funding_rate_last(payload: Any) -> Optional[dict]:
     except Exception:
         ts = None
     return {"funding_rate_pct": round(fr_pct, 6), "funding_time_ms": ts}
+
+def normalize_binance_open_interest(payload):
+    try:
+        if hasattr(payload, "data") and isinstance(getattr(payload, "data"), dict):
+            payload = payload.data
+    except Exception:
+        pass
+    if not isinstance(payload, dict):
+        return None
+    v = payload.get("openInterest", None)
+    if v is None:
+        return None
+    try:
+        return float(v)
+    except Exception:
+        return None
