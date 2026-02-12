@@ -2460,95 +2460,129 @@ def normalize_cme_cftc_open_interest(rows):
 import statistics
 from typing import Any, Dict, List, Optional
 
-def _funding_regime_summary(series: List[Dict[str, Any]], interval_hours: int = 8) -> Optional[Dict[str, Any]]:
-    if not series:
+def _funding_regime_summary(series, interval_hours=8):
+    import math
+    try:
+        if not isinstance(series, list) or len(series) < 3:
+            return None
+
+        vals = []
+        for it in series:
+            try:
+                v = it.get("value", None)
+                if v is None:
+                    continue
+                vals.append(float(v))
+            except Exception:
+                continue
+
+        n = len(vals)
+        if n < 3:
+            return None
+
+        last = vals[-1]
+        mean = sum(vals) / n
+        sorted_vals = sorted(vals)
+        median = sorted_vals[n // 2] if (n % 2 == 1) else (sorted_vals[n // 2 - 1] + sorted_vals[n // 2]) / 2.0
+        vmin = min(vals)
+        vmax = max(vals)
+
+        var = sum((x - mean) ** 2 for x in vals) / (n - 1)
+        stdev = math.sqrt(var) if var >= 0 else 0.0
+
+        flips = 0
+        for i in range(1, n):
+            if (vals[i - 1] >= 0 and vals[i] < 0) or (vals[i - 1] < 0 and vals[i] >= 0):
+                flips += 1
+
+        pos_ratio = sum(1 for x in vals if x > 0) / n
+
+        xs = list(range(n))
+        x_mean = sum(xs) / n
+        denom = sum((x - x_mean) ** 2 for x in xs)
+        slope = 0.0
+        if denom != 0:
+            slope = sum((xs[i] - x_mean) * (vals[i] - mean) for i in range(n)) / denom
+
+        z_last = 0.0
+        if stdev and stdev > 0:
+            z_last = (last - mean) / stdev
+
+        dec = [x / 100.0 for x in vals]
+        cum_dec = sum(dec)
+        cum_pct = cum_dec * 100.0
+
+        periods_per_year = int((24 / interval_hours) * 365)
+        mean_dec = (mean / 100.0)
+        ann_carry = (1.0 + mean_dec) ** periods_per_year - 1.0
+        ann_carry_pct = ann_carry * 100.0
+
+        mean_abs = abs(mean)
+        if mean_abs < 0.01:
+            bias = "NEUTRAL"
+        elif mean > 0:
+            bias = "POSITIVE"
+        else:
+            bias = "NEGATIVE"
+
+        vol = "LOW_VOL" if stdev < 0.20 else "HIGH_VOL"
+
+        squeeze_hint = None
+        if mean < -0.02 and slope > 0.01:
+            squeeze_hint = "SHORT_CROWDED_RELIEF_RALLY_RISK"
+        elif mean > 0.02 and slope < -0.01:
+            squeeze_hint = "LONG_CROWDED_DRAWDOWN_RISK"
+
+        def clamp(x, lo, hi):
+            return max(lo, min(hi, x))
+
+        crowding_score = None
+        squeeze_score = None
+        chop_score = None
+
+        try:
+            crowding_strength = clamp(abs(mean) / 0.03, 0.0, 1.0)
+            trend_strength = clamp(abs(slope) / 0.02, 0.0, 1.0)
+            vol_strength = clamp(stdev / 0.20, 0.0, 1.0)
+            flip_strength = clamp(flips / 12.0, 0.0, 1.0)
+
+            crowding_score = int(round(100.0 * (0.70 * crowding_strength + 0.30 * trend_strength)))
+
+            squeeze_score = 0
+            if mean < -0.02 and slope > 0.01:
+                squeeze_score = int(round(100.0 * clamp((abs(mean) / 0.05) * 0.70 + (slope / 0.03) * 0.30, 0.0, 1.0)))
+            elif mean > 0.02 and slope < -0.01:
+                squeeze_score = int(round(100.0 * clamp((abs(mean) / 0.05) * 0.70 + (abs(slope) / 0.03) * 0.30, 0.0, 1.0)))
+
+            chop_score = int(round(100.0 * clamp(0.55 * flip_strength + 0.25 * vol_strength + 0.20 * (1.0 - trend_strength), 0.0, 1.0)))
+        except Exception:
+            crowding_score = None
+            squeeze_score = None
+            chop_score = None
+
+        return {
+            "interval": f"{interval_hours}h",
+            "n": n,
+            "last_pct": round(last, 6),
+            "mean_pct": round(mean, 6),
+            "median_pct": round(median, 6),
+            "stdev_pct": round(stdev, 6),
+            "min_pct": round(vmin, 6),
+            "max_pct": round(vmax, 6),
+            "pos_ratio": round(pos_ratio, 3),
+            "flips": flips,
+            "slope_pct_per_bar": round(slope, 6),
+            "z_last": round(z_last, 3),
+            "cum_30_pct": round(cum_pct, 6),
+            "ann_carry_pct": round(ann_carry_pct, 2),
+            "regime": f"{bias}_{vol}",
+            "squeeze_risk_hint": squeeze_hint,
+            "crowding_score": crowding_score,
+            "squeeze_score": squeeze_score,
+            "chop_score": chop_score,
+        }
+    except Exception:
         return None
-
-    vals: List[float] = []
-    for p in series:
-        v = p.get("value")
-        if isinstance(v, (int, float)):
-            vals.append(float(v))
-
-    if len(vals) < 5:
-        return None
-
-    last = vals[-1]
-    mean = statistics.fmean(vals)
-    median = statistics.median(vals)
-    stdev = statistics.pstdev(vals)  # deterministic pop stdev
-    vmin = min(vals)
-    vmax = max(vals)
-
-    pos_ratio = sum(1 for x in vals if x > 0) / len(vals)
-
-    flips = 0
-    prev_sign = 0
-    for x in vals:
-        sign = 1 if x > 0 else (-1 if x < 0 else 0)
-        if prev_sign != 0 and sign != 0 and sign != prev_sign:
-            flips += 1
-        if sign != 0:
-            prev_sign = sign
-
-    # slope: simple OLS (x=0..n-1)
-    n = len(vals)
-    xs = list(range(n))
-    x_mean = (n - 1) / 2.0
-    denom = sum((x - x_mean) ** 2 for x in xs) or 1.0
-    slope = sum((x - x_mean) * (y - mean) for x, y in zip(xs, vals)) / denom  # pct per bar
-
-    z_last = 0.0 if stdev == 0 else (last - mean) / stdev
-
-    # carry: pct -> decimal
-    # assumption: values are percent points (0.10 == 0.10%)
-    dec = [x / 100.0 for x in vals]
-    cum_dec = sum(dec)
-    cum_pct = cum_dec * 100.0
-
-    periods_per_year = int((24 / interval_hours) * 365)  # 8h -> 1095
-    mean_dec = (mean / 100.0)
-    ann_carry = (1.0 + mean_dec) ** periods_per_year - 1.0
-    ann_carry_pct = ann_carry * 100.0
-
-    # regime labeling (rule-based thresholds; tweak later)
-    mean_abs = abs(mean)
-    if mean_abs < 0.01:
-        bias = "NEUTRAL"
-    elif mean > 0:
-        bias = "POSITIVE"
-    else:
-        bias = "NEGATIVE"
-
-    vol = "LOW_VOL" if stdev < 0.20 else "HIGH_VOL"
-
-    squeeze_hint = None
-    # Negative funding + rising slope => shorts crowded, relief rally risk
-    if mean < -0.02 and slope > 0.01:
-        squeeze_hint = "SHORT_CROWDED_RELIEF_RALLY_RISK"
-    # Positive funding + falling slope => longs crowded, drawdown risk
-    elif mean > 0.02 and slope < -0.01:
-        squeeze_hint = "LONG_CROWDED_DRAWDOWN_RISK"
-
-    return {
-        "interval": f"{interval_hours}h",
-        "n": n,
-        "last_pct": round(last, 4),
-        "mean_pct": round(mean, 4),
-        "median_pct": round(median, 4),
-        "stdev_pct": round(stdev, 4),
-        "min_pct": round(vmin, 4),
-        "max_pct": round(vmax, 4),
-        "pos_ratio": round(pos_ratio, 3),
-        "flips": flips,
-        "slope_pct_per_bar": round(slope, 5),
-        "z_last": round(z_last, 3),
-        "cum_30_pct": round(cum_pct, 4),
-        "ann_carry_pct": round(ann_carry_pct, 2),
-        "regime": f"{bias}_{vol}",
-        "squeeze_risk_hint": squeeze_hint,
-    }
-
 def normalize_funding_regime(data: Dict[str, Any]) -> Optional[Dict[str, Any]]:
     payload = data
     if hasattr(data, "data"):

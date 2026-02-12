@@ -219,6 +219,39 @@ class JSONContractBuilder:
 # ============================================================================
 # TEXT FORMATTER (TERMINAL/DEBUG)
 # ============================================================================
+def _format_funding_regime_line(v: dict) -> str:
+    regime = v.get("regime", "N/A")
+    last_pct = v.get("last_pct", "N/A")
+    mean_pct = v.get("mean_pct", "N/A")
+    stdev_pct = v.get("stdev_pct", "N/A")
+    pos_ratio = v.get("pos_ratio", "N/A")
+    ann = v.get("ann_carry_pct", "N/A")
+    flips = v.get("flips", "N/A")
+    z = v.get("z_last", "N/A")
+    slope = v.get("slope_pct_per_bar", "N/A")
+    cum = v.get("cum_30_pct", "N/A")
+    cs = v.get("crowding_score", "N/A")
+    ss = v.get("squeeze_score", "N/A")
+    ch = v.get("chop_score", "N/A")
+    hint = v.get("squeeze_risk_hint", None)
+    tail = "" if (hint in (None, "N/A", "")) else f" | hint={hint}"
+    return (
+        f"{regime}"
+        f" | last8h={last_pct}%"
+        f" | mean8h={mean_pct}%"
+        f" | stdev8h={stdev_pct}"
+        f" | pos={pos_ratio}"
+        f" | annCarry={ann}%"
+        f" | flips30={flips}"
+        f" | z={z}"
+        f" | slope={slope}"
+        f" | cum30={cum}%"
+        f" | crowd={cs}"
+        f" | squeeze={ss}"
+        f" | chop={ch}"
+        f"{tail}"
+    )
+
 
 class TextFormatter:
     """
