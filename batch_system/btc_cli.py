@@ -139,6 +139,12 @@ def main():
     print(f"DAILY SUMMARY: {ok_count}/{len(results)} metrics OK")
     print("=" * 70)
 
+    # FREE MODE DEFAULT: avoid weekly/monthly calls unless explicitly enabled
+    # Set INCLUDE_WM=1 to include weekly/monthly in free mode
+    include_wm = os.getenv("INCLUDE_WM", "0").strip() == "1"
+    if data_mode == "free" and not include_wm:
+        return
+
     # ========================================================================
     # WEEKLY PANEL (HYBRID: IMPLEMENTED METRICS FETCH, OTHERS SKELETON)
     # ========================================================================
