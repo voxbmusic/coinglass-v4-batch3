@@ -6,7 +6,7 @@ import urllib.request
 
 class BinancePublicAPI:
     def _select_base_url(self, path: str) -> str:
-        if isinstance(path, str) and path.startswith("/fapi/"):
+        if isinstance(path, str) and (path.startswith("/fapi/") or path.startswith("/futures/")):
             return "https://fapi.binance.com"
         return self.base_url
 
