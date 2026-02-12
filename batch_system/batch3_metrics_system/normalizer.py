@@ -2452,3 +2452,137 @@ def normalize_cme_cftc_open_interest(rows):
         "report_date": row.get("report_date_as_yyyy_mm_dd"),
         "open_interest_all": oi
     }
+
+# ------------------------------------------------------------
+# FUNDING REGIME (Derived) - uses funding history series (8h)
+# Adds: normalize_funding_regime + helper summary
+# ------------------------------------------------------------
+import statistics
+from typing import Any, Dict, List, Optional
+
+def _funding_regime_summary(series: List[Dict[str, Any]], interval_hours: int = 8) -> Optional[Dict[str, Any]]:
+    if not series:
+        return None
+
+    vals: List[float] = []
+    for p in series:
+        v = p.get("value")
+        if isinstance(v, (int, float)):
+            vals.append(float(v))
+
+    if len(vals) < 5:
+        return None
+
+    last = vals[-1]
+    mean = statistics.fmean(vals)
+    median = statistics.median(vals)
+    stdev = statistics.pstdev(vals)  # deterministic pop stdev
+    vmin = min(vals)
+    vmax = max(vals)
+
+    pos_ratio = sum(1 for x in vals if x > 0) / len(vals)
+
+    flips = 0
+    prev_sign = 0
+    for x in vals:
+        sign = 1 if x > 0 else (-1 if x < 0 else 0)
+        if prev_sign != 0 and sign != 0 and sign != prev_sign:
+            flips += 1
+        if sign != 0:
+            prev_sign = sign
+
+    # slope: simple OLS (x=0..n-1)
+    n = len(vals)
+    xs = list(range(n))
+    x_mean = (n - 1) / 2.0
+    denom = sum((x - x_mean) ** 2 for x in xs) or 1.0
+    slope = sum((x - x_mean) * (y - mean) for x, y in zip(xs, vals)) / denom  # pct per bar
+
+    z_last = 0.0 if stdev == 0 else (last - mean) / stdev
+
+    # carry: pct -> decimal
+    # assumption: values are percent points (0.10 == 0.10%)
+    dec = [x / 100.0 for x in vals]
+    cum_dec = sum(dec)
+    cum_pct = cum_dec * 100.0
+
+    periods_per_year = int((24 / interval_hours) * 365)  # 8h -> 1095
+    mean_dec = (mean / 100.0)
+    ann_carry = (1.0 + mean_dec) ** periods_per_year - 1.0
+    ann_carry_pct = ann_carry * 100.0
+
+    # regime labeling (rule-based thresholds; tweak later)
+    mean_abs = abs(mean)
+    if mean_abs < 0.01:
+        bias = "NEUTRAL"
+    elif mean > 0:
+        bias = "POSITIVE"
+    else:
+        bias = "NEGATIVE"
+
+    vol = "LOW_VOL" if stdev < 0.20 else "HIGH_VOL"
+
+    squeeze_hint = None
+    # Negative funding + rising slope => shorts crowded, relief rally risk
+    if mean < -0.02 and slope > 0.01:
+        squeeze_hint = "SHORT_CROWDED_RELIEF_RALLY_RISK"
+    # Positive funding + falling slope => longs crowded, drawdown risk
+    elif mean > 0.02 and slope < -0.01:
+        squeeze_hint = "LONG_CROWDED_DRAWDOWN_RISK"
+
+    return {
+        "interval": f"{interval_hours}h",
+        "n": n,
+        "last_pct": round(last, 4),
+        "mean_pct": round(mean, 4),
+        "median_pct": round(median, 4),
+        "stdev_pct": round(stdev, 4),
+        "min_pct": round(vmin, 4),
+        "max_pct": round(vmax, 4),
+        "pos_ratio": round(pos_ratio, 3),
+        "flips": flips,
+        "slope_pct_per_bar": round(slope, 5),
+        "z_last": round(z_last, 3),
+        "cum_30_pct": round(cum_pct, 4),
+        "ann_carry_pct": round(ann_carry_pct, 2),
+        "regime": f"{bias}_{vol}",
+        "squeeze_risk_hint": squeeze_hint,
+    }
+
+def normalize_funding_regime(data: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+    payload = data
+    if hasattr(data, "data"):
+        try:
+            payload = getattr(data, "data")
+        except Exception:
+            payload = data
+    if hasattr(payload, "data"):
+        try:
+            payload = getattr(payload, "data")
+        except Exception:
+            pass
+    if isinstance(payload, dict) and isinstance(payload.get("data"), list):
+        arr = payload.get("data") or []
+        series = []
+        for it in arr:
+            try:
+                t_ms = int(it.get("time"))
+                close = float(it.get("close"))
+                series.append({"timestamp": int(t_ms / 1000), "value": close * 100.0})
+            except Exception:
+                continue
+        if not series:
+            return None
+        return _funding_regime_summary(series, interval_hours=8)
+    series = None
+    if isinstance(payload, list):
+        series = payload
+    else:
+        try:
+            series = normalize_funding_rate_history(payload)
+        except Exception:
+            series = None
+    if not isinstance(series, list) or not series:
+        return None
+    return _funding_regime_summary(series, interval_hours=8)
+

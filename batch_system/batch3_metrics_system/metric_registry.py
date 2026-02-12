@@ -785,6 +785,22 @@ MONTHLY_METRICS: List[MetricDefinition] = [
 # PANEL REGISTRY - COMPLETE METRIC COLLECTION
 # ============================================================================
 
+# daily_11 - Funding Regime (8h, derived) - uses funding history series to produce decision-grade summary
+DAILY_METRICS.append(
+    create_daily_metric(
+        "daily_11_funding_regime_8h",
+        "Funding Regime (8h, derived)",
+        "8h",
+        "funding",
+        "/api/futures/funding-rate/oi-weight-history",
+        {"interval": "8h", "limit": "30", "symbol": "BTC"},
+        APIConfidence.CONFIRMED,
+        "normalize_funding_regime",
+        "funding_regime",
+        "Derived regime summary from last 30 funding points (8h) to make series decision-grade.",
+        "Derived metric: uses funding history series and summarizes mean/vol/z/flip/slope/carry style features."
+    )
+)
 PANEL_REGISTRY: Dict[str, List[MetricDefinition]] = {
     'daily': DAILY_METRICS,
     'weekly': WEEKLY_METRICS,

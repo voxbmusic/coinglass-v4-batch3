@@ -1,3 +1,19 @@
+def _format_funding_regime_line(v: dict) -> str:
+    regime = v.get("regime", "N/A")
+    last_pct = v.get("last_pct", "N/A")
+    mean_pct = v.get("mean_pct", "N/A")
+    stdev_pct = v.get("stdev_pct", "N/A")
+    pos_ratio = v.get("pos_ratio", "N/A")
+    ann = v.get("ann_carry_pct", "N/A")
+    flips = v.get("flips", "N/A")
+    z = v.get("z_last", "N/A")
+    slope = v.get("slope_pct_per_bar", "N/A")
+    cum = v.get("cum_30_pct", "N/A")
+    hint = v.get("squeeze_risk_hint", None)
+    tail = "" if (hint in (None, "N/A", "")) else f" | hint={hint}"
+    return f"{regime} | last={last_pct}% | mean={mean_pct}% | stdev={stdev_pct} | pos={pos_ratio} | ann={ann}% | flips={flips} | z={z} | slope={slope} | cum30={cum}%{tail}"
+
+
 """
 Output Formatter - Batch 3
 JSON Contract v1 builder and text formatter for metric results
@@ -66,6 +82,8 @@ class JSONContractBuilder:
         
         # Dict: recursively sanitize values
         elif isinstance(value, dict):
+            if unit == "funding_regime":
+                return "Funding Regime: " + _format_funding_regime_line(value)
             return {k: JSONContractBuilder.sanitize_value(v) for k, v in value.items()}
         
         # List: recursively sanitize items
@@ -216,25 +234,22 @@ class TextFormatter:
         MetricStatus.LOCKED: "🔒",
         MetricStatus.EXTERNAL_REQUIRED: "🔗"
     }
-    
     @staticmethod
     def format_value(value: Any, unit: str) -> str:
         """
         Format a metric value with its unit
-        
+
         Args:
             value: Normalized value (float | dict | list | None)
             unit: Display unit
-        
+
         Returns:
             Formatted string
         """
         if value is None:
             return "N/A"
-        
-        # Handle different value types
-        if isinstance(value, float):
-            # Format float based on unit
+
+        if isinstance(value, (int, float)):
             if unit == "percent":
                 return f"{value:+.2f}%"
             elif unit == "billion_usd":
@@ -245,9 +260,10 @@ class TextFormatter:
                 return f"{value:.3f}"
             else:
                 return f"{value:.4f}"
-        
+
         elif isinstance(value, dict):
-            # Format dict as key=value pairs
+            if unit == "funding_regime":
+                return "Funding Regime: " + _format_funding_regime_line(value)
             parts = []
             for k, v in value.items():
                 if v is None:
@@ -257,13 +273,13 @@ class TextFormatter:
                 else:
                     parts.append(f"{k}={v}")
             return "{" + ", ".join(parts) + "}"
-        
+
         elif isinstance(value, list):
-            # Format list length
             return f"[{len(value)} items]"
-        
+
         else:
             return str(value)
+
     
     @staticmethod
     def format_metric(

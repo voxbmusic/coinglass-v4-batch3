@@ -15,6 +15,7 @@ DAILY_MINIMAL_IDS = [
     "daily_03_oi_change_4h",
     "daily_04_weighted_funding_rate",
     "daily_05_funding_rate_history",
+    "daily_11_funding_regime_8h",
     "daily_06_long_short_global",
     "daily_07_long_short_hyperliquid",
     "daily_08_liquidations_24h_total",

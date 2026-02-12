@@ -118,6 +118,8 @@ class MetricOrchestrator:
             'normalize_long_short_hyperliquid': normalizer.normalize_long_short_hyperliquid,
             'normalize_liquidations_total': normalizer.normalize_liquidations_total,
             'normalize_liquidation_events': normalizer.normalize_liquidation_events,
+
+            "normalize_funding_regime": normalizer.normalize_funding_regime,
             'normalize_coinbase_premium': normalizer.normalize_coinbase_premium,
             # Weekly normalizers
             'normalize_fear_greed_index': normalizer.normalize_fear_greed_index,
