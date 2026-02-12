@@ -13,7 +13,11 @@ from typing import Dict, Any
 
 
 # Valid parameter values
-VALID_INTERVALS = ["1h", "4h", "8h", "24h", "1d", "7d", "30d"]
+VALID_INTERVALS = [
+    "5m", "15m", "30m",
+    "1h", "2h", "4h", "6h", "8h", "12h", "24h",
+    "1d", "7d", "30d"
+]
 VALID_SYMBOLS = ["BTC", "ETH", "BNB"]  # Extensible
 
 
