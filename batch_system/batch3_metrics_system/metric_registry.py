@@ -209,7 +209,21 @@ DAILY_METRICS: List[MetricDefinition] = [
         unit="percent",
         description="Coinbase premium/discount vs global exchanges",
         implementation_notes="Returns dict: {premium, change_1h} - latest value + 1h change; v4 indicator endpoint"
-    )
+    ),
+
+    create_daily_metric(
+        daily_id="daily_13_binance_funding_rate_last",
+        name="Funding Rate (latest, Binance Futures)",
+        timeframe="8h",
+        category="funding",
+        endpoint="/fapi/v1/fundingRate",
+        params={"symbol": "BTCUSDT", "limit": "1"},
+        api_confidence=APIConfidence.UNVERIFIED,
+        normalizer="normalize_binance_funding_rate_last",
+        unit="percent",
+        description="Latest BTCUSDT funding rate from Binance Futures (most recent funding entry).",
+        implementation_notes="Free-mode provider: Binance Futures public endpoint /fapi/v1/fundingRate; normalized to percent + fundingTime.",
+    ),
 ]
 
 

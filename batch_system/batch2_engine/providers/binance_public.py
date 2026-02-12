@@ -5,6 +5,11 @@ import urllib.request
 
 
 class BinancePublicAPI:
+    def _select_base_url(self, path: str) -> str:
+        if isinstance(path, str) and path.startswith("/fapi/"):
+            return "https://fapi.binance.com"
+        return self.base_url
+
     def __init__(self, base_url: str = "https://api.binance.com", timeout: int = 20):
         self.base_url = base_url.rstrip("/")
         self.timeout = timeout
@@ -12,7 +17,8 @@ class BinancePublicAPI:
     def fetch(self, path: str, params: dict | None = None):
         params = params or {}
         q = urllib.parse.urlencode(params, doseq=True)
-        url = f"{self.base_url}{path}"
+        base = self._select_base_url(path)
+        url = f"{base}{path}"
         if q:
             url = f"{url}?{q}"
         req = urllib.request.Request(url, headers={"User-Agent": "coinglass-v4-batch3"})

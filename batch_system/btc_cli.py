@@ -13,7 +13,8 @@ import os
 if os.getenv("DATA_MODE","").strip().lower() == "free":
     DAILY_MINIMAL_IDS = [
         "daily_12_price_last_close",
-    ]
+    
+        "daily_13_binance_funding_rate_last",]
 else:
     DAILY_MINIMAL_IDS = [
     "daily_01_total_open_interest",

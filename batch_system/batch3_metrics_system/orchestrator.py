@@ -144,7 +144,8 @@ class MetricOrchestrator:
             'normalize_etf_bitcoin_holdings_total': normalizer.normalize_etf_bitcoin_holdings_total,
             'normalize_grayscale_us_holdings_total': normalizer.normalize_grayscale_us_holdings_total
 ,
-            'normalize_options_volume_growth_30d': normalizer.normalize_options_volume_growth_30d,        }
+            'normalize_options_volume_growth_30d': normalizer.normalize_options_volume_growth_30d,                    'normalize_binance_funding_rate_last': normalizer.normalize_binance_funding_rate_last,
+}
     
     def fetch_and_normalize(self, metric: MetricDefinition) -> MetricResult:
         """

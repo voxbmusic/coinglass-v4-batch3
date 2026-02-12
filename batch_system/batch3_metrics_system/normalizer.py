@@ -2643,3 +2643,31 @@ def normalize_price_last_close(payload: Any) -> Optional[float]:
             return None
 
     return None
+
+
+from typing import Any, Optional
+def normalize_binance_funding_rate_last(payload: Any) -> Optional[dict]:
+    try:
+        if hasattr(payload, "data"):
+            payload = getattr(payload, "data")
+    except Exception:
+        pass
+    if isinstance(payload, dict) and isinstance(payload.get("data"), list):
+        payload = payload.get("data")
+    if isinstance(payload, dict) and isinstance(payload.get("data"), dict):
+        payload = payload.get("data")
+    if not isinstance(payload, list) or not payload:
+        return None
+    last = payload[-1]
+    if not isinstance(last, dict):
+        return None
+    try:
+        fr = float(last.get("fundingRate"))
+    except Exception:
+        return None
+    fr_pct = fr * 100.0
+    try:
+        ts = int(last.get("fundingTime"))
+    except Exception:
+        ts = None
+    return {"funding_rate_pct": round(fr_pct, 6), "funding_time_ms": ts}
