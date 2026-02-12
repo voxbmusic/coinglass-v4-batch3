@@ -2,14 +2,20 @@ import os
 import sys
 from datetime import datetime
 
-from batch2_engine.coinglass import CoinGlassAPI
-from batch2_engine.free_api import FreeAPI
+from batch2_engine.provider_factory import get_api
 from batch3_metrics_system.orchestrator import MetricOrchestrator
 from batch3_metrics_system.metric_registry import PANEL_REGISTRY
 from batch3_metrics_system.output import TextFormatter
 from batch3_metrics_system.metric_definitions import MetricStatus, DataSource, PlanTier
 
-DAILY_MINIMAL_IDS = [
+import os
+
+if os.getenv("DATA_MODE","").strip().lower() == "free":
+    DAILY_MINIMAL_IDS = [
+        "daily_12_price_last_close",
+    ]
+else:
+    DAILY_MINIMAL_IDS = [
     "daily_01_total_open_interest",
     "daily_02_oi_change_1h",
     "daily_03_oi_change_4h",
@@ -22,7 +28,6 @@ DAILY_MINIMAL_IDS = [
     "daily_09_top_liquidation_events",
     "daily_10_coinbase_premium_index",
 ]
-
 WEEKLY_SKELETON_IDS = [
     "weekly_01_oi_trend",
     "weekly_02_cme_oi",
@@ -90,7 +95,7 @@ def main():
     # DATA_MODE=free  -> no CoinGlass key required (FreeAPI stub/provider hub)
     # DATA_MODE=coinglass -> requires COINGLASS_API_KEY
     if data_mode == "free":
-        api = FreeAPI()
+        api = get_api()
     else:
         api_key = os.getenv("COINGLASS_API_KEY", "").strip()
         if not api_key:
@@ -103,7 +108,7 @@ def main():
             print("  export COINGLASS_API_KEY=your_key")
             print("  python3 batch_system/btc_cli.py")
             sys.exit(1)
-        api = CoinGlassAPI(api_key)
+        api = get_api()
     orchestrator = MetricOrchestrator(api)
     metrics = pick_daily_minimal_metrics()
     
