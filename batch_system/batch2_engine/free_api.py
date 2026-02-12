@@ -19,6 +19,64 @@ from batch2_engine.response_models import APIResponse
 
 
 class FreeAPI:
+
+    def _fetch_coinbase_premium_index(self, symbol: str, limit: int = 2) -> APIResponse:
+        sym = self._map_symbol(symbol)
+        if sym != "BTCUSDT":
+            return self._err(f"FREE_MODE: Coinbase premium only supports BTC (got {symbol})", status_code=501)
+
+        # We only need last 2 points to compute 1h change reliably
+        lim = 2
+
+        try:
+            # Coinbase hourly candles: [time, low, high, open, close, volume] (time is epoch-seconds)
+            cb_url = "https://api.exchange.coinbase.com/products/BTC-USD/candles"
+            cb = self.session.get(cb_url, params={"granularity": 3600}, timeout=self.timeout)
+            if cb.status_code != 200:
+                return self._err(f"Coinbase HTTP {cb.status_code}: {cb.text[:200]}", status_code=cb.status_code)
+            cb_rows = cb.json()
+            if not isinstance(cb_rows, list) or len(cb_rows) < 2:
+                return self._err("Coinbase returned insufficient candles", status_code=502)
+
+            # Binance hourly klines: [openTime(ms), open, high, low, close, ...]
+            bn_url = "https://api.binance.com/api/v3/klines"
+            bn = self.session.get(bn_url, params={"symbol": "BTCUSDT", "interval": "1h", "limit": 2}, timeout=self.timeout)
+            if bn.status_code != 200:
+                return self._err(f"Binance HTTP {bn.status_code}: {bn.text[:200]}", status_code=bn.status_code)
+            bn_rows = bn.json()
+            if not isinstance(bn_rows, list) or len(bn_rows) < 2:
+                return self._err("Binance returned insufficient klines", status_code=502)
+
+            cb_latest, cb_prev = cb_rows[0], cb_rows[1]
+            cb_latest_ts = int(cb_latest[0])
+            cb_prev_ts = int(cb_prev[0])
+            cb_latest_close = float(cb_latest[4])
+            cb_prev_close = float(cb_prev[4])
+
+            # Binance returns older first in the 2-candle window; keep consistent
+            bn_prev, bn_latest = bn_rows[0], bn_rows[1]
+            bn_latest_ts = int(bn_latest[0]) // 1000
+            bn_prev_ts = int(bn_prev[0]) // 1000
+            bn_latest_close = float(bn_latest[4])
+            bn_prev_close = float(bn_prev[4])
+
+            latest_ts = min(cb_latest_ts, bn_latest_ts)
+            prev_ts = min(cb_prev_ts, bn_prev_ts)
+
+            if bn_latest_close <= 0 or bn_prev_close <= 0:
+                return self._err("Binance close price invalid", status_code=502)
+
+            latest_premium_rate = (cb_latest_close - bn_latest_close) / bn_latest_close
+            prev_premium_rate = (cb_prev_close - bn_prev_close) / bn_prev_close
+
+            data = [
+                {"time": int(latest_ts) * 1000, "premium_rate": float(latest_premium_rate)},
+                {"time": int(prev_ts) * 1000, "premium_rate": float(prev_premium_rate)},
+            ]
+            return self._ok(data)
+
+        except Exception as e:
+            return self._err(f"Coinbase premium fetch failed: {e}", status_code=502)
     BINANCE_FAPI = "https://fapi.binance.com"
 
     def __init__(self, timeout: int = 15):
@@ -263,6 +321,12 @@ class FreeAPI:
         if ep == "/api/futures/liquidation/aggregated-history":
             symbol = str(params.get("symbol", "BTC"))
             return self._fetch_binance_liquidation_volume_24h(symbol=symbol)
+        if ep == "/api/coinbase-premium-index":
+            limit = params.get("limit", 2)
+            symbol = str(params.get("symbol", "BTC"))
+            return self._fetch_coinbase_premium_index(symbol=symbol, limit=limit)
+
+
 
 
 
